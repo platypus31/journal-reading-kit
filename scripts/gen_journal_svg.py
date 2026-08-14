@@ -339,7 +339,7 @@ def build(content_path, outdir):
         raise SystemExit(f"content.json 不是合法 JSON：{e}")
     validate_content(data)
     os.makedirs(outdir, exist_ok=True)
-    for old in glob.glob(os.path.join(outdir, "[0-9][0-9]_*.svg")):  # 只清本腳本產物（NN_*.svg），不動使用者手動放的檔
+    for old in glob.glob(os.path.join(outdir, "[0-9]*_*.svg")):  # 只清本腳本產物（NN_*.svg），不動使用者手動放的檔
         os.remove(old)
     n = 1
     cover(outdir, f"{n:02d}", data.get("cover") or {}); n += 1

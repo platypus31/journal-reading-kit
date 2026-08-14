@@ -24,8 +24,28 @@
 
 - [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code)（或其他相容 AI CLI：repo 內含 AGENTS.md／GEMINI.md 設定）
 - Python 3.9+，`pymupdf`（PDF 抽圖）
-- [ppt-master](https://github.com/hugohe3/ppt-master)（SVG → 可編輯 pptx 的匯出引擎；裝在 `~/ppt-master`，或設環境變數 `PPT_MASTER_DIR`）
-- 選配：Playwright（`npx playwright install chromium`，論文網頁截圖用）
+- [ppt-master](https://github.com/hugohe3/ppt-master)（SVG → 可編輯 pptx 的匯出引擎，簡報主路線必裝，安裝見下）
+- 選配：Playwright（需 Node.js；`npx playwright install chromium`，論文網頁截圖用。本 repo 腳本全為 Python，不需要 `npm install`）
+
+### 安裝 ppt-master
+
+簡報主路線（SVG → native 可編輯 pptx）與 PDF 抽圖都跑在 ppt-master 的 venv 裡，需先裝好：
+
+```bash
+git clone --depth 1 https://github.com/hugohe3/ppt-master.git ~/ppt-master
+cd ~/ppt-master
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+```
+
+⚠️ ppt-master 的資產庫約 1.2GB，建議照上面加 `--depth 1` 只抓最新一版。
+
+裝在別的位置的話，設環境變數 `PPT_MASTER_DIR` 指過去即可 —— 本 repo 文件裡的指令一律以
+`PPT_MASTER="${PPT_MASTER_DIR:-$HOME/ppt-master}"` 取值，沒設就用預設的 `~/ppt-master`：
+
+```bash
+export PPT_MASTER_DIR=/your/path/to/ppt-master
+```
 
 ### 使用
 

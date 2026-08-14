@@ -22,12 +22,12 @@ triggers:
 
 **內容規則**（`data/slide-template.md` 詳細版）：**英文為主、直接從 journal 原文截取**（Methods/Results 數據與關鍵句原文引述，僅 Background 概念可中文）；**條列式精簡 bullet**（每條 ≤ 60 字元，過長會被 gate 擋溢出）；一頁 3-5 條。
 
-**五步流程**（用 ppt-master venv：`PY=~/ppt-master/.venv/bin/python`）：
+**五步流程**（用 ppt-master venv，先取路徑：`PPT_MASTER="${PPT_MASTER_DIR:-$HOME/ppt-master}"; PY="$PPT_MASTER/.venv/bin/python"`）：
 1. **抽內容** → 依 `data/example-content.json` 格式把原文截取內容寫成 `<project>/content.json`（cover + slides 陣列：section／content／figure 三種 kind；bullet 內 `&` `<` `>` 用原字元，生成器會轉義）
 2. **抽圖表** → `$PY scripts/extract_figures.py <paper.pdf> -o <project>/figs`（PyMuPDF 抽論文統計圖表，manifest.json 記每張來源頁）
    - ⚠️ **全向量圖期刊（BMJ 等）抽出的是整頁 render（含文字欄）**，不能直接當 figure 用——AI 需再用 `fitz` clip 按比例精裁圖區：讀頁面目測圖的位置比例（如 forest plot 在 y 52%-93%）→ `page.get_pixmap(dpi=200, clip=fitz.Rect(w*x0, h*y0, w*x1, h*y1))`。BMJ GLP-1RA 實戰（2026-08-12）就是這樣裁出 Fig 3/7/8。裁完看縮圖確認無殘字再嵌入。
 3. **生成 SVG** → `$PY scripts/gen_journal_svg.py <project>/content.json <project>/svg_output`
-4. **品質關卡** → `cd ~/ppt-master && $PY skills/ppt-master/scripts/svg_quality_checker.py <project> --quick-generate --stage final --json`（🔴 rc≠0 就修到過，通常是 bullet 過長溢出；⚠️ 改 SVG 後 gate 可能讀舊快取，換新目錄重跑最保險）
+4. **品質關卡** → `cd "$PPT_MASTER" && $PY skills/ppt-master/scripts/svg_quality_checker.py <project> --quick-generate --stage final --json`（🔴 rc≠0 就修到過，通常是 bullet 過長溢出；⚠️ 改 SVG 後 gate 可能讀舊快取，換新目錄重跑最保險）
 5. **導出 pptx** → `$PY skills/ppt-master/scripts/svg_to_pptx.py <project> -o ~/Desktop/jr-report.pptx --quick-generate`（🔴 **rc=0 且 `ls` 確認檔案存在才算完成**，rc=1 = gate 沒過 = 沒有產檔）
 
 圖表插入：目前 figure 頁是佔位框，`extract_figures` 抽出的圖由使用者在 PowerPoint 內拖入（或後續版本自動嵌入）。

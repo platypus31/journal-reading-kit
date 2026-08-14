@@ -4,8 +4,9 @@
 風格：白底 + 灰色流線波紋裝飾 + serif 大寫標題 + 條列式大字內容 + 大寫 section 過場 + 圖表頁。
 內容來源：/jr pipeline 從 journal 原文抽取（英文為主），寫成 content.json 後餵進本工具。
 
-用法（用 ppt-master venv 跑，之後 svg_to_pptx 也用同 venv）：
-    ~/ppt-master/.venv/bin/python scripts/gen_journal_svg.py <content.json> <svg_output_dir>
+用法（用 ppt-master venv 跑，之後 svg_to_pptx 也用同 venv；
+     ppt-master 位置取自 $PPT_MASTER_DIR，未設則預設 ~/ppt-master）：
+    "${PPT_MASTER_DIR:-$HOME/ppt-master}"/.venv/bin/python scripts/gen_journal_svg.py <content.json> <svg_output_dir>
 
 content.json 格式：
 {

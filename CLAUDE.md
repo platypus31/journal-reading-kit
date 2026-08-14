@@ -36,7 +36,7 @@ claude
 - **論文取得／metadata**：內建走 PubMed E-utilities（curl）與 Europe PMC，**不需任何 MCP**
 - **圖表擷取**：`scripts/extract_figures.py`（pymupdf）
 - 有 PubMed／Playwright MCP 可加分，但非必需
-- **ppt-master** — 簡報產生主路線（native 可編輯 pptx + 載入使用者範本，`~/ppt-master`，詳見 `docs/ppt-master-integration.md`）
+- **ppt-master** — 簡報產生主路線（native 可編輯 pptx + 載入使用者範本，裝在 `$PPT_MASTER_DIR`（預設 `~/ppt-master`），詳見 `docs/ppt-master-integration.md`）
 - **Canva MCP** — 簡報產生 fallback 第 1 層
 - **WebSearch / WebFetch** — 背景知識搜尋、圖片取得
 

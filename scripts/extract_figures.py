@@ -3,8 +3,9 @@
 
 2026-08-12 校準：簡報要放論文裡的實際圖表，不能純文字。
 
-用法（PyMuPDF 需 python3.10+，用 ppt-master 的 venv 跑）：
-    ~/ppt-master/.venv/bin/python scripts/extract_figures.py <paper.pdf> -o <outdir>
+用法（PyMuPDF 需 python3.10+，用 ppt-master 的 venv 跑；
+     ppt-master 位置取自 $PPT_MASTER_DIR，未設則預設 ~/ppt-master）：
+    "${PPT_MASTER_DIR:-$HOME/ppt-master}"/.venv/bin/python scripts/extract_figures.py <paper.pdf> -o <outdir>
 
 行為：
 - 抽出每頁嵌入的 raster 圖片，過濾掉太小的（logo/icon）。
@@ -20,8 +21,9 @@ try:
     import fitz  # PyMuPDF
 except ImportError:
     sys.stderr.write(
-        "需要 PyMuPDF。請用 ppt-master 的 venv 執行：\n"
-        "  ~/ppt-master/.venv/bin/python scripts/extract_figures.py <pdf> -o <outdir>\n"
+        "需要 PyMuPDF。請用 ppt-master 的 venv 執行"
+        "（路徑取自 $PPT_MASTER_DIR，未設則預設 ~/ppt-master）：\n"
+        '  "${PPT_MASTER_DIR:-$HOME/ppt-master}"/.venv/bin/python scripts/extract_figures.py <pdf> -o <outdir>\n'
     )
     sys.exit(2)
 

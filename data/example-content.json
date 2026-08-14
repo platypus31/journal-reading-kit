@@ -1,0 +1,54 @@
+{
+  "_note": "範例 content.json（Facet Joint OA，示範用非真實抽取）。實際由 /jr 從 journal 原文抽取生成。英文為主、bullet 精簡防溢出、用 raw & 讓 esc() 轉義。",
+  "cover": {
+    "title": ["RELATIONSHIP BETWEEN FACET JOINT", "OSTEOARTHRITIS AND LUMBAR", "PARASPINAL MUSCLE ATROPHY"],
+    "presenter": "Presenter: PGY2 ○○○",
+    "supervisor": "Supervisor: 廖美珍醫師"
+  },
+  "slides": [
+    {"kind": "section", "name": "INTRODUCTION"},
+    {"kind": "content", "title": "Background", "bullets": [
+      "Unique segmental stabilizer of the lumbar spine",
+      "Reduced fCSA & fat infiltration = key markers",
+      "FJOA reflects posterior-column degeneration",
+      "FJOA & paraspinal atrophy coexist in LBP"]},
+    {"kind": "content", "title": "Study Objective", "bullets": [
+      "Link FJOA severity to multifidus atrophy",
+      "Assess fCSA, fat infiltration & asymmetry",
+      "Prior small studies lacked quantitative data"]},
+    {"kind": "section", "name": "METHODS"},
+    {"kind": "content", "title": "Study Design", "bullets": [
+      "Cross-sectional; 225 LBP adults on MRI (49.7% F)",
+      "FJOA graded by Weishaupt at L4-S1",
+      "Multifidus fCSA & fat measured on axial T2",
+      "Left-right asymmetry index per segment"]},
+    {"kind": "section", "name": "RESULTS"},
+    {"kind": "content", "title": "Primary Outcome", "bullets": [
+      "Severe FJOA: significantly lower fCSA",
+      "Higher fat with higher FJOA grade (sig.)",
+      "Stronger with multilevel involvement"]},
+    {"kind": "figure", "title": "Results — Key Figure", "caption": "Forest plot / correlation (extract_figures.py 從 PDF 抽取插入)"},
+    {"kind": "content", "title": "Key Findings", "bullets": [
+      "Dose-response: FJOA vs multifidus degeneration",
+      "Fat infiltration earlier than fCSA loss",
+      "Asymmetry may be an early clue of FJOA",
+      "Independent of age and sex"]},
+    {"kind": "section", "name": "DISCUSSION"},
+    {"kind": "content", "title": "Discussion", "bullets": [
+      "Confirms FJOA-multifidus degeneration link",
+      "Supports posterior-column vicious-cycle model",
+      "Assess multifidus whenever FJOA is seen",
+      "Targeted rehab may slow degeneration & LBP"]},
+    {"kind": "content", "title": "Limitations", "bullets": [
+      "Cross-sectional: no causality/temporality",
+      "Single-center, symptomatic: selection bias",
+      "Not adjusted for sarcopenia/activity"]},
+    {"kind": "section", "name": "CONCLUSION"},
+    {"kind": "content", "title": "Conclusion", "bullets": [
+      "Multifidus degeneration correlates with FJOA",
+      "Fat infiltration & asymmetry = early markers",
+      "Evaluate paraspinal muscles with FJOA",
+      "Consider multifidus-targeted rehab"]},
+    {"kind": "section", "name": "THANK YOU"}
+  ]
+}

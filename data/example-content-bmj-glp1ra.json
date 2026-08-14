@@ -1,0 +1,84 @@
+{
+  "cover": {
+    "title": ["COMPARATIVE EFFECTIVENESS OF GLP-1", "RECEPTOR AGONISTS FOR TYPE 2 DIABETES", "SYSTEMATIC REVIEW & NETWORK META-ANALYSIS"],
+    "presenter": "Presenter: PGY2 ○○○",
+    "supervisor": "Yao H, et al. BMJ 2024;384:e076410"
+  },
+  "slides": [
+    {"kind": "content", "title": "Paper Information", "bullets": [
+      "Yao H, Zhang A, Li D, et al. BMJ 2024;384:e076410 (Open Access)",
+      "Design: systematic review and network meta-analysis",
+      "PROSPERO registration: CRD42022342845",
+      "Sources: PubMed, Web of Science, Cochrane CENTRAL, Embase (inception to 19 Aug 2023)"]},
+    {"kind": "section", "name": "INTRODUCTION"},
+    {"kind": "content", "title": "Background", "bullets": [
+      "Diabetes: 476 million globally, 463 million with type 2 diabetes",
+      "GLP-1RAs: increase insulin secretion, inhibit glucagon, slow gastric emptying, reduce caloric intake and body weight",
+      "FDA approved: exenatide, liraglutide, dulaglutide, albiglutide, lixisenatide, semaglutide, tirzepatide",
+      "Novel drugs emerging: orforglipron, retatrutide, CagriSema — updated evidence synthesis urgently needed"]},
+    {"kind": "content", "title": "Objective", "bullets": [
+      "Evaluate comparative efficacy and safety of GLP-1RAs on glycaemic control, body weight, and lipid profile in adults with type 2 diabetes",
+      "Most complete GLP-1RA network to date: 15 drugs including latest novel agents pooled for the first time",
+      "Rank efficacy by SUCRA; explore dose-effect patterns"]},
+    {"kind": "section", "name": "METHODS"},
+    {"kind": "content", "title": "Study Design", "bullets": [
+      "Eligibility: RCTs, adults 18-65 with type 2 diabetes, GLP-1RA vs placebo or GLP-1RA, follow-up >= 12 weeks",
+      "Excluded: crossover design, non-inferiority without placebo arm, withdrawn drugs, non-English",
+      "Three reviewers screened independently; fourth resolved conflicts",
+      "Risk of bias: Cochrane RoB 2.0; certainty: CINeMA framework"]},
+    {"kind": "content", "title": "Statistical Analysis", "bullets": [
+      "Frequentist network meta-analysis (Stata MVMETA), random effects, REML",
+      "Mean difference for continuous outcomes; odds ratio for adverse events (95% CI)",
+      "SUCRA curves ranked drug efficacy; node splitting checked consistency",
+      "Subgroups: dose, follow-up duration, single vs dual/triple agonists"]},
+    {"kind": "section", "name": "RESULTS"},
+    {"kind": "content", "title": "Study Characteristics", "bullets": [
+      "16,316 citations -> 483 full text assessed -> 76 RCTs included",
+      "39,246 participants; 15 GLP-1RA drugs; 58 countries",
+      "Mean age 56.79 (SD 9.59); 54.06% men; diabetes duration 8.47 years",
+      "Baseline BMI 31.73; HbA1c 8.13%; intervention 12-78 weeks",
+      "Overall risk of bias: 13% of studies high risk"]},
+    {"kind": "content", "title": "Glycaemic Control", "bullets": [
+      "All 15 GLP-1RAs significantly lowered HbA1c vs placebo (56 trials, n=26,343)",
+      "Tirzepatide largest: -2.10% (95% CI -2.47 to -1.74), SUCRA 94.2%, high confidence",
+      "Mazdutide -2.09 (-3.10 to -1.09); CagriSema -1.80 (-2.87 to -0.73)",
+      "Fasting glucose: tirzepatide -3.12 mmol/L (-3.59 to -2.66), SUCRA 97.2%, high confidence"]},
+    {"kind": "figure", "title": "HbA1c — Forest Plot (Fig 3)", "caption": "Network effect sizes of 15 GLP-1RAs vs placebo for HbA1c (%); colours = CINeMA confidence", "path": "<figs_dir>/fig3_forest_hba1c.png"},
+    {"kind": "content", "title": "Body Weight", "bullets": [
+      "53 trials, 21,349 participants for body weight changes",
+      "CagriSema most effective: -14.03 kg (-17.05 to -11.00), high confidence",
+      "Tirzepatide -8.47 kg (-9.68 to -7.26); retatrutide -7.87 (-9.95 to -5.79)",
+      "Waist circumference: tirzepatide -6.77 cm; semaglutide -3.74 cm; liraglutide -2.30 cm"]},
+    {"kind": "figure", "title": "Body Weight — Forest Plot (Fig 7)", "caption": "Network effect sizes vs placebo for weight loss (kg); colours = CINeMA confidence", "path": "<figs_dir>/fig7_forest_weight.png"},
+    {"kind": "content", "title": "Lipid Profile", "bullets": [
+      "Semaglutide: only GLP-1RA lowering LDL, -0.16 mmol/L (-0.30 to -0.02)",
+      "Semaglutide also lowered total cholesterol -0.48 (-0.84 to -0.11)",
+      "PEG-loxenatide: only drug raising HDL, 0.16 mmol/L (0.00 to 0.31)",
+      "Triglycerides: ITCA 650 -1.59; tirzepatide -0.89 mmol/L significant vs placebo"]},
+    {"kind": "content", "title": "Adverse Events", "bullets": [
+      "Discontinuation OR: lixisenatide 2.86 (1.48-5.51), semaglutide 2.61, exenatide 2.39, tirzepatide 2.30, liraglutide 2.15",
+      "Diarrhoea: CagriSema 6.60 (1.16-37.76); tirzepatide 2.88 (2.09-3.96)",
+      "Nausea elevated with 12 of 15 drugs; vomiting with 10 drugs",
+      "GI odds rose with increasing dose — warning for high dose administration"]},
+    {"kind": "figure", "title": "Adverse Events (Fig 8)", "caption": "Odds ratios vs placebo: discontinuation, diarrhoea, nausea, vomiting", "path": "<figs_dir>/fig8_adverse.png"},
+    {"kind": "section", "name": "DISCUSSION"},
+    {"kind": "content", "title": "Principal Findings", "bullets": [
+      "Tirzepatide best for HbA1c and fasting glucose (high confidence of evidence)",
+      "CagriSema most effective for reducing body weight",
+      "Dual (tirzepatide, mazdutide, CagriSema) and triple (retatrutide) agonists outperform single agonists",
+      "Dose-dependent efficacy; tirzepatide 15 mg: discontinuation OR 2.26 (1.35 to 3.77)"]},
+    {"kind": "content", "title": "Limitations", "bullets": [
+      "Varied population characteristics and follow-up durations",
+      "Participants had little control over diet and exercise",
+      "Some trials lacked randomisation / blinding details",
+      "Some drugs involved few articles — interpret with caution",
+      "Open label design and pharmaceutical industry funding bias risk"]},
+    {"kind": "section", "name": "CONCLUSION"},
+    {"kind": "content", "title": "Take Home Message", "bullets": [
+      "GLP-1RAs much more effective than placebo in treating adults with type 2 diabetes",
+      "Tirzepatide: most effective on glycaemic control (HbA1c and fasting glucose)",
+      "CagriSema: best performance for weight loss",
+      "Safety concern: gastrointestinal adverse events, especially at high doses"]},
+    {"kind": "section", "name": "THANK YOU"}
+  ]
+}

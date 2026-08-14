@@ -264,11 +264,16 @@ def figure(outdir, idx, title, caption, path=None, hl=None):
             s.append(f'<image x="240" y="170" width="800" height="440" '
                      f'preserveAspectRatio="xMidYMid meet" href="data:{mime};base64,{b64}"/>')
             embedded = True
-            sz = png_size(path)
-            if hl and sz and sz[0] > 0 and sz[1] > 0:
-                iw, ih = sz
-                if (isinstance(hl, (list, tuple)) and len(hl) == 4
-                        and all(isinstance(v, (int, float)) for v in hl)):
+            if hl:
+                hl_ok = (isinstance(hl, (list, tuple)) and len(hl) == 4
+                         and all(isinstance(v, (int, float)) for v in hl))
+                sz = png_size(path)
+                if not hl_ok:
+                    sys.stderr.write(f"WARN figure「{title}」：hl 需為 4 個數字 [x0,y0,x1,y1]，已略過紅框\n")
+                elif not (sz and sz[0] > 0 and sz[1] > 0):
+                    sys.stderr.write(f"WARN figure「{title}」：紅框僅支援 PNG（此圖非 PNG 或讀不到尺寸），已略過\n")
+                else:
+                    iw, ih = sz
                     sc = min(800 / iw, 440 / ih)
                     dw, dh = iw * sc, ih * sc
                     dx, dy = 240 + (800 - dw) / 2, 170 + (440 - dh) / 2
@@ -276,8 +281,8 @@ def figure(outdir, idx, title, caption, path=None, hl=None):
                     s.append(f'<rect x="{dx + rx0 * dw:.1f}" y="{dy + ry0 * dh:.1f}" '
                              f'width="{max((rx1 - rx0) * dw, 0):.1f}" height="{max((ry1 - ry0) * dh, 0):.1f}" '
                              f'fill="none" stroke="#CC2222" stroke-width="2.5"/>')
-                elif hl:
-                    sys.stderr.write(f"WARN figure「{title}」：hl 需為 4 個數字 [x0,y0,x1,y1]，已略過紅框\n")
+        else:
+            sys.stderr.write(f"WARN figure「{title}」：副檔名非 png/jpg（{path}），改用佔位框\n")
     elif path:
         sys.stderr.write(f"WARN figure「{title}」：圖檔缺失或無效（{path}），改用佔位框\n")
     if not embedded:
@@ -312,8 +317,17 @@ def validate_content(data):
             raise SystemExit(f"{where} kind「{sl.get('kind')}」無效，須為 {sorted(VALID_KINDS)}")
         # list 欄位：型別錯或 null 都擋（null 迭代會崩潰；明確報錯優於靜默空頁）
         for field, typ in _LIST_FIELDS.items():
-            if field in sl and not isinstance(sl[field], typ):
+            if field not in sl:
+                continue
+            if not isinstance(sl[field], typ):
                 raise SystemExit(f"{where} 的 {field} 必須是陣列，收到 {type(sl[field]).__name__}")
+            # 元素型別：rows 每列須是陣列；bullets/paragraphs/headers 每項須是純量（容器會被逐字元/取key）
+            for j, el in enumerate(sl[field]):
+                if field == "rows":
+                    if not isinstance(el, (list, tuple)):
+                        raise SystemExit(f"{where} 的 rows[{j}] 必須是陣列（一列儲存格），收到 {type(el).__name__}")
+                elif not isinstance(el, (str, int, float)):
+                    raise SystemExit(f"{where} 的 {field}[{j}] 必須是文字/數字，收到 {type(el).__name__}")
 
 def build(content_path, outdir):
     try:
@@ -325,7 +339,7 @@ def build(content_path, outdir):
         raise SystemExit(f"content.json 不是合法 JSON：{e}")
     validate_content(data)
     os.makedirs(outdir, exist_ok=True)
-    for old in glob.glob(os.path.join(outdir, "*.svg")):  # 清舊 SVG，避免殘留頁被匯出成殭屍
+    for old in glob.glob(os.path.join(outdir, "[0-9][0-9]_*.svg")):  # 只清本腳本產物（NN_*.svg），不動使用者手動放的檔
         os.remove(old)
     n = 1
     cover(outdir, f"{n:02d}", data.get("cover") or {}); n += 1

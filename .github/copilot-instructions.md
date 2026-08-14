@@ -1,3 +1,5 @@
+# GitHub Copilot 設定；內容同 CLAUDE.md
+
 # Journal Reading Kit
 
 丟論文，自動產出三種格式：簡報 (PPT)、口頭報告逐字稿、報告前閱讀摘要。

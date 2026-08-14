@@ -77,8 +77,8 @@ triggers:
 
 執行 `skills/generate-output.md`：
 
-1. **簡報** — 依照 `data/slide-template.md` 結構 + 選定的模板風格
-   - Fallback chain: Canva MCP → python-pptx → Google Slides → Markdown
+1. **簡報** — 主路線：content.json → `gen_journal_svg.py` → ppt-master gate/export（native 可編輯 pptx），五步見 `skills/generate-output.md` §2
+   - Fallback（主路線不可用時）：python-pptx → Markdown
 2. **逐字稿** — 依照 `data/script-template.md`，每頁對應簡報，附語氣標注
 3. **閱讀摘要** — 依照 `data/summary-template.md`，1-2 頁精簡版
 
@@ -92,7 +92,7 @@ triggers:
   ✅ Journal Reading 報告完成
 ══════════════════════════════════════════
 
-簡報: [Canva 連結 / ~/Desktop/jr-report.pptx / output/jr-slides-{date}.md]
+簡報: <project>/06_slides/jr-report.pptx（native 可編輯）
 逐字稿: output/jr-script-{date}.md
 閱讀摘要: output/jr-summary-{date}.md
 ```
@@ -103,8 +103,7 @@ triggers:
 
 - 找不到論文：請使用者提供更多資訊或直接提供 PDF
 - 無法取得全文：僅用摘要，但標註「以下分析基於摘要，可能不完整」
-- Canva 不可用：自動 fallback 到 python-pptx → Markdown
-- 每次 fallback 時通知使用者
+- ppt-master 主路線不可用：自動 fallback 到 python-pptx → Markdown，並通知使用者
 
 ## 語言規則
 

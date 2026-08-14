@@ -21,41 +21,36 @@ triggers:
 
 ## 執行流程
 
-### 1. 識別論文
+> 🔴 **預設走 curl（NCBI E-utilities＋Europe PMC），不需任何 MCP**。若環境有 PubMed MCP 可替代這些 curl，但非必需。以下指令可直接照抄執行。
 
-**如果是標題：**
-- 用 `mcp__claude_ai_PubMed__search_articles` 搜尋
-- 自動選擇最佳匹配（標題相似度最高的結果）
+### 1. 識別論文 + 取得 Metadata（curl，零 MCP）
 
-**如果是 PMID：**
-- 直接用 `mcp__claude_ai_PubMed__get_article_metadata` 取得資訊
+**PMID → metadata（標題／作者／期刊／年份／PMCID／DOI）：**
+```bash
+curl -s "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=<PMID>&retmode=json"
+```
 
-**如果是 DOI：**
-- 用 `mcp__claude_ai_PubMed__search_articles` 以 DOI 搜尋
+**標題／DOI → 找 PMID：**
+```bash
+curl -s "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmode=json&term=<urlencode 的標題或 DOI>"
+# 回傳 idlist[0] 即 PMID，再用上面的 esummary 取 metadata
+```
 
-**如果是 PDF 路徑：**
-- 讀取 PDF 提取標題和內容
-- 用標題搜尋 PubMed 取得 metadata
+**PDF 路徑：** 直接讀 PDF 取標題，再用標題 esearch 補 metadata。
 
-### 2. 取得 Metadata
+整理欄位：標題／作者（第一+通訊+et al.）／期刊／年份／DOI／PMID／IF（如可查）／研究類型（RCT/Cohort/SR）。
 
-整理以下資訊：
-- 標題
-- 作者（第一作者 + 通訊作者 + et al.）
-- 期刊名稱
-- 發表年份
-- DOI
-- PMID
-- Impact Factor（如可查到）
-- 研究類型（RCT / Cohort / SR 等）
+### 2. 取得全文（curl，PMC 直連會被擋，走 Europe PMC）
 
-### 3. 取得全文
-
-依序嘗試：
-1. `mcp__claude_ai_PubMed__get_full_text_article`（PubMed Central 全文）
-2. Playwright 瀏覽期刊網站嘗試取得
-3. 如果使用者有提供 PDF → 直接讀取
-4. 都無法取得 → 僅使用摘要，標註限制
+```bash
+# 先從 esummary 拿 PMCID（articleids 內），再抓 PDF + 全文 XML
+curl -sL -A "Mozilla/5.0" "https://europepmc.org/articles/<PMCID>?pdf=render" -o paper.pdf
+curl -s "https://www.ebi.ac.uk/europepmc/webservices/rest/<PMCID>/fullTextXML" -o fulltext.xml
+# 驗證頁數（file 指令對 linearized PDF 會誤報 0 頁）：
+python3 -c "import pymupdf; print(len(pymupdf.open('paper.pdf')))"
+```
+- 取不到全文（無 PMCID / 非 open access）→ 使用者有 PDF 就讀 PDF；都沒有 → 僅用摘要並標註限制。
+- 有 PubMed MCP 的環境可改用 `mcp__*__get_full_text_article` 替代。
 
 ### 4. 論文結構解析
 

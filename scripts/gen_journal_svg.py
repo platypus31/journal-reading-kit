@@ -19,6 +19,7 @@ content.json 格式：
 🔴 內容以英文為主（從 journal 原文截取），bullet 精簡（gate 會擋過長溢出）；bullet 內用 raw & / < / >，esc() 會統一轉義。
 """
 import base64
+import glob
 import math, os, re, sys, json
 
 W, H = 1280, 720
@@ -39,8 +40,11 @@ def head():
     return [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}">',
             f'<rect width="{W}" height="{H}" fill="#F7F8FA"/>']
 
+_CTRL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
+
 def esc(s):
-    return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    s = _CTRL_RE.sub("", str(s))  # 剝除 XML 1.0 非法控制字元（PDF 抽文字常帶 \x00）
+    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 def txt(x, y, s, size, color="#1A1A1A", weight="700", anchor="start", ls="0.5", family="Georgia, serif"):
     return (f'<text x="{x}" y="{y}" font-family="{family}" font-size="{size}" font-weight="{weight}" '
@@ -54,7 +58,7 @@ def cover(outdir, idx, c):
     s.append(waves(180,560,22,11,42,150,0,1)); s.append(waves(1120,180,20,12,40,160,1.2,-1))
     s.append(dots(70,78)); s.append(dots(1090,660))
     y = 300
-    for ln in c.get("title", ["Journal Reading"]):
+    for ln in (c.get("title") or ["Journal Reading"]):
         s.append(txt(W/2, y, ln, 52, anchor="middle", ls="1.5")); y += 62
     if c.get("presenter"):  s.append(txt(W/2, y+40, c["presenter"], 26, "#333", "700", "middle"))
     if c.get("supervisor"): s.append(txt(W/2, y+78, c["supervisor"], 26, "#333", "700", "middle"))
@@ -65,7 +69,7 @@ def section(outdir, idx, name):
     s.append(waves(210,610,18,12,44,150,0,1)); s.append(waves(1080,120,16,12,40,160,1.0,-1))
     s.append(dots(1110,650))
     s.append(txt(W/2, H/2+20, name, 96, anchor="middle", ls="4"))
-    write(outdir, idx, name.lower().replace(" ", "_")[:16], s)
+    write(outdir, idx, slug(name), s)  # 走 slug 防檔名含 / 崩潰＋路徑穿越（其他頁型都有走，section 曾漏）
 
 def slug(title):
     """檔名安全化（codex P2：title 含 / 等字元會被當路徑分隔符炸掉）。"""
@@ -112,6 +116,26 @@ def cjk_wrap(s, units):
         lines.append(cur)
     return lines or [""]
 
+def _valid_image_bytes(path):
+    """回傳圖檔 bytes（magic bytes 相符且非空），否則 None。擋 0-byte 檔與崩潰半成品被當好圖嵌入。"""
+    if not path or not os.path.isfile(path):
+        return None
+    try:
+        with open(path, "rb") as f:
+            raw = f.read()
+    except Exception:
+        return None
+    if len(raw) < 8:
+        return None
+    if raw[:8] == b"\x89PNG\r\n\x1a\n" or raw[:3] == b"\xff\xd8\xff":  # PNG / JPEG magic
+        return raw
+    return None
+
+def _warn_overflow(kind, title, y):
+    """內容畫到畫布外（H=720）時提醒——生成端零檢查，靜默溢出很難發現。"""
+    if y > 700:
+        sys.stderr.write(f"WARN {kind}「{title}」：內容底緣 y={y:.0f} 超出畫布 720，可能溢出（請拆頁或精簡）\n")
+
 def png_size(path):
     """讀 PNG IHDR 寬高（figure hl 紅框定位用；非 PNG 回 None）。"""
     try:
@@ -137,6 +161,8 @@ def table(outdir, idx, title, headers, rows, widths=None, note=None):
     rows = [(list(r) + [""] * n)[:n] for r in rows]  # 欄數對齊 headers（多截少補）
     if widths and len(widths) != n:
         raise SystemExit(f"table「{title}」：widths 長度 {len(widths)} ≠ 欄數 {n}")
+    if widths and not all(isinstance(w, (int, float)) and w > 0 for w in widths):
+        raise SystemExit(f"table「{title}」：widths 必須全為正數，收到 {widths}")
     x0, x1, y0 = 95, 1185, 175
     tw = x1 - x0
     ws = widths or [1] * n
@@ -173,6 +199,7 @@ def table(outdir, idx, title, headers, rows, widths=None, note=None):
         y += rh
     if note:
         s.append(txt(x0, min(y + 34, 690), note, 19, "#8A9099", "400", ls="0.2"))
+    _warn_overflow("table", title, y)
     write(outdir, idx, "t_" + slug(title), s)
 
 def textcard(outdir, idx, title, paragraphs, quote=None, caption=None):
@@ -202,6 +229,7 @@ def textcard(outdir, idx, title, paragraphs, quote=None, caption=None):
         y += qh
     if caption:
         s.append(txt(W/2, 690, caption, 21, "#8A9099", "400", "middle"))
+    _warn_overflow("textcard", title, y)
     write(outdir, idx, "tc_" + slug(title), s)
 
 def content(outdir, idx, title, bullets):
@@ -211,12 +239,13 @@ def content(outdir, idx, title, bullets):
     s.append('<line x1="90" y1="145" x2="1190" y2="145" stroke="#C4C9D0" stroke-width="2"/>')
     y = 225
     for b in bullets:
-        lines = wrap_bullet(b)
+        lines = cjk_wrap(b, 76)  # 中文感知斷行（wrap_bullet 用 len() 對全形字寬算錯，會溢出畫布）
         s.append(f'<circle cx="108" cy="{y-9:.0f}" r="6" fill="#6B7280"/>')
         for ln in lines:
             s.append(txt(132, y, ln, 25, "#2A2A2A", "400", ls="0.2"))
             y += 38
         y += 30
+    _warn_overflow("content", title, y)
     write(outdir, idx, "c_" + slug(title), s)
 
 def figure(outdir, idx, title, caption, path=None, hl=None):
@@ -226,49 +255,87 @@ def figure(outdir, idx, title, caption, path=None, hl=None):
     s.append(txt(90, 120, title, 46, ls="1.2"))
     s.append('<line x1="90" y1="145" x2="1190" y2="145" stroke="#C4C9D0" stroke-width="2"/>')
     embedded = False
-    if path and os.path.isfile(path):
+    raw = _valid_image_bytes(path)  # 驗 magic bytes（擋 0-byte／崩潰半成品／非圖片；只 isfile 會靜默嵌空圖）
+    if raw is not None:
         ext = os.path.splitext(path)[1].lower().lstrip(".")
         mime = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg"}.get(ext)
         if mime:
-            b64 = base64.b64encode(open(path, "rb").read()).decode()
+            b64 = base64.b64encode(raw).decode()
             s.append(f'<image x="240" y="170" width="800" height="440" '
                      f'preserveAspectRatio="xMidYMid meet" href="data:{mime};base64,{b64}"/>')
             embedded = True
-            if hl and png_size(path):
-                iw, ih = png_size(path)
-                sc = min(800 / iw, 440 / ih)
-                dw, dh = iw * sc, ih * sc
-                dx, dy = 240 + (800 - dw) / 2, 170 + (440 - dh) / 2
-                rx0, ry0, rx1, ry1 = hl
-                s.append(f'<rect x="{dx + rx0 * dw:.1f}" y="{dy + ry0 * dh:.1f}" '
-                         f'width="{(rx1 - rx0) * dw:.1f}" height="{(ry1 - ry0) * dh:.1f}" '
-                         f'fill="none" stroke="#CC2222" stroke-width="2.5"/>')
+            sz = png_size(path)
+            if hl and sz and sz[0] > 0 and sz[1] > 0:
+                iw, ih = sz
+                if (isinstance(hl, (list, tuple)) and len(hl) == 4
+                        and all(isinstance(v, (int, float)) for v in hl)):
+                    sc = min(800 / iw, 440 / ih)
+                    dw, dh = iw * sc, ih * sc
+                    dx, dy = 240 + (800 - dw) / 2, 170 + (440 - dh) / 2
+                    rx0, ry0, rx1, ry1 = hl
+                    s.append(f'<rect x="{dx + rx0 * dw:.1f}" y="{dy + ry0 * dh:.1f}" '
+                             f'width="{max((rx1 - rx0) * dw, 0):.1f}" height="{max((ry1 - ry0) * dh, 0):.1f}" '
+                             f'fill="none" stroke="#CC2222" stroke-width="2.5"/>')
+                elif hl:
+                    sys.stderr.write(f"WARN figure「{title}」：hl 需為 4 個數字 [x0,y0,x1,y1]，已略過紅框\n")
+    elif path:
+        sys.stderr.write(f"WARN figure「{title}」：圖檔缺失或無效（{path}），改用佔位框\n")
     if not embedded:
         s.append('<rect x="240" y="200" width="800" height="380" fill="#FFFFFF" stroke="#B0B6BE" stroke-width="2" stroke-dasharray="10 8"/>')
         s.append(txt(W/2, 380, "[ Journal Figure ]", 34, "#8A9099", "700", "middle"))
     s.append(txt(W/2, 655, caption, 22, "#8A9099", "400", "middle"))
     write(outdir, idx, "fig_" + slug(title), s)
 
+VALID_KINDS = {"section", "figure", "table", "textcard", "content"}
+_LIST_FIELDS = {"bullets": list, "paragraphs": list, "rows": list, "headers": list}
+
+def validate_content(data):
+    """型別守門：把「格式合法但型別錯」擋在生成前（否則字串會被逐字元迭代灌爆版面）。"""
+    if not isinstance(data, dict):
+        raise SystemExit("content.json 頂層必須是物件 {}")
+    cov = data.get("cover")
+    if cov is not None and not isinstance(cov, dict):
+        raise SystemExit("cover 必須是物件")
+    if cov and cov.get("title") is not None and not isinstance(cov["title"], list):
+        raise SystemExit("cover.title 必須是陣列（每個元素一行）")
+    slides = data.get("slides")
+    if slides is None:
+        slides = []
+    if not isinstance(slides, list):
+        raise SystemExit("slides 必須是陣列")
+    for i, sl in enumerate(slides, 1):
+        where = f"slides[{i}]"
+        if not isinstance(sl, dict):
+            raise SystemExit(f"{where} 必須是物件，收到 {type(sl).__name__}")
+        k = sl.get("kind") or "content"
+        if k not in VALID_KINDS:
+            raise SystemExit(f"{where} kind「{sl.get('kind')}」無效，須為 {sorted(VALID_KINDS)}")
+        # list 欄位：型別錯或 null 都擋（null 迭代會崩潰；明確報錯優於靜默空頁）
+        for field, typ in _LIST_FIELDS.items():
+            if field in sl and not isinstance(sl[field], typ):
+                raise SystemExit(f"{where} 的 {field} 必須是陣列，收到 {type(sl[field]).__name__}")
+
 def build(content_path, outdir):
-    data = json.load(open(content_path, encoding="utf-8"))
+    try:
+        with open(content_path, encoding="utf-8-sig") as f:  # utf-8-sig 容忍 BOM
+            data = json.load(f)
+    except FileNotFoundError:
+        raise SystemExit(f"找不到 content.json：{content_path}")
+    except json.JSONDecodeError as e:
+        raise SystemExit(f"content.json 不是合法 JSON：{e}")
+    validate_content(data)
     os.makedirs(outdir, exist_ok=True)
+    for old in glob.glob(os.path.join(outdir, "*.svg")):  # 清舊 SVG，避免殘留頁被匯出成殭屍
+        os.remove(old)
     n = 1
-    cover(outdir, f"{n:02d}", data.get("cover", {})); n += 1
+    cover(outdir, f"{n:02d}", data.get("cover") or {}); n += 1
+    dispatch = {"section": lambda idx, sl: section(outdir, idx, sl.get("name", "")),
+                "figure": lambda idx, sl: figure(outdir, idx, sl.get("title", "Figure"), sl.get("caption", ""), sl.get("path"), sl.get("hl")),
+                "table": lambda idx, sl: table(outdir, idx, sl.get("title", ""), sl.get("headers", []), sl.get("rows", []), sl.get("widths"), sl.get("note")),
+                "textcard": lambda idx, sl: textcard(outdir, idx, sl.get("title", ""), sl.get("paragraphs", []), sl.get("quote"), sl.get("caption")),
+                "content": lambda idx, sl: content(outdir, idx, sl.get("title", ""), sl.get("bullets", []))}
     for sl in data.get("slides", []):
-        idx = f"{n:02d}"
-        k = sl.get("kind")
-        if k == "section":
-            section(outdir, idx, sl.get("name", ""))
-        elif k == "figure":
-            figure(outdir, idx, sl.get("title", "Figure"), sl.get("caption", ""), sl.get("path"), sl.get("hl"))
-        elif k == "table":
-            table(outdir, idx, sl.get("title", ""), sl.get("headers", []), sl.get("rows", []),
-                  sl.get("widths"), sl.get("note"))
-        elif k == "textcard":
-            textcard(outdir, idx, sl.get("title", ""), sl.get("paragraphs", []),
-                     sl.get("quote"), sl.get("caption"))
-        else:
-            content(outdir, idx, sl.get("title", ""), sl.get("bullets", []))
+        dispatch.get(sl.get("kind"), dispatch["content"])(f"{n:02d}", sl)
         n += 1
     print(f"generated {n-1} slides -> {outdir}")
 

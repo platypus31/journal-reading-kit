@@ -2,7 +2,7 @@
   "_note": "範例 content.json（Facet Joint OA，示範用非真實抽取）。實際由 /jr 從 journal 原文抽取生成。英文為主、bullet 精簡防溢出、用 raw & 讓 esc() 轉義。",
   "cover": {
     "title": ["RELATIONSHIP BETWEEN FACET JOINT", "OSTEOARTHRITIS AND LUMBAR", "PARASPINAL MUSCLE ATROPHY"],
-    "presenter": "Presenter: PGY2 ○○○",
+    "presenter": "Presenter: ○○○ 醫師",
     "supervisor": "Supervisor: 廖美珍醫師"
   },
   "slides": [

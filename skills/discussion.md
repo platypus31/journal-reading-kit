@@ -266,6 +266,6 @@ CKD stage 2-4 病人（eGFR 25-75, 有白蛋白尿），在 ACEi/ARB 基礎上�
 ## 注意事項
 - Discussion 的議題要有深度，不要只是複述論文
 - Limitations 要客觀，既不要過度批評也不要迴避
-- Take home message 要實用，讓 PGY 明天就能用
+- Take home message 要實用，讓臨床醫師明天就能用
 - 「用病人聽得懂的話說」是台灣 EBM 教育的重點要求
 - COI 和 Spin 偵測是品質把關，每篇都要做

@@ -9,7 +9,7 @@
 
 content.json 格式：
 {
-  "cover": {"title": ["行1","行2"], "presenter": "PGY.. 姓名", "supervisor": "..醫師"},
+  "cover": {"title": ["行1","行2"], "presenter": "報告者姓名", "supervisor": "..醫師"},
   "slides": [
     {"kind": "section",  "name": "INTRODUCTION"},
     {"kind": "content",  "title": "Background", "bullets": ["原文截取重點1", "重點2"]},

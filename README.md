@@ -20,17 +20,28 @@
 
 ## 快速開始
 
+### 一鍵安裝（推薦）
+
+```bash
+git clone https://github.com/platypus31/journal-reading-kit.git
+cd journal-reading-kit
+bash bootstrap.sh   # 自動檢查依賴、安裝 ppt-master（約 1.2GB）、self-check
+```
+
+全綠後直接啟動 AI CLI（如 `claude`）輸入 `/jr` 即可。`bash bootstrap.sh --check-only` 只檢查不安裝。
+以下為手動安裝步驟（bootstrap 做的事一樣）：
+
 ### 需求
 
 - AI CLI：[Claude Code](https://docs.anthropic.com/en/docs/claude-code)、Codex CLI、Gemini CLI、Cursor 或 GitHub Copilot
   （repo 內含 `CLAUDE.md`／`AGENTS.md`／`GEMINI.md`／`.cursorrules`／`.github/copilot-instructions.md` 五份同內容設定）
 - Python 3.9+（主引擎 `gen_journal_svg.py` 只用標準庫，不必額外裝套件）
-- [ppt-master](https://github.com/hugohe3/ppt-master) —— **唯一必裝的外部依賴**（SVG → 可編輯 pptx 的匯出引擎，安裝見下）。
+- [ppt-master](https://github.com/hugohe3/ppt-master) —— **唯一必裝的外部依賴**（SVG → 可編輯 pptx 的匯出引擎，`bootstrap.sh` 會自動裝，手動裝見下）。
   抽圖用的 `PyMuPDF` 與 fallback 用的 `python-pptx` 都含在它的 venv 裡，**不需要另外 pip install**
 - 論文取得走 `curl`（PubMed E-utilities + Europe PMC），**零 MCP**，不需任何額外設定
 - 選配：Playwright（需 Node.js；`npx playwright install chromium`，論文網頁截圖用。本 repo 腳本全為 Python，不需要 `npm install`）
 
-### 安裝 ppt-master
+### 手動安裝（不跑 bootstrap 時）
 
 簡報主路線（SVG → native 可編輯 pptx）與 PDF 抽圖都跑在 ppt-master 的 venv 裡，需先裝好：
 
@@ -49,6 +60,8 @@ python3 -m venv .venv
 ```bash
 export PPT_MASTER_DIR=/your/path/to/ppt-master
 ```
+
+（`bootstrap.sh` 同樣認得 `PPT_MASTER_DIR`，會裝到你指定的位置。）
 
 ### 使用
 
@@ -95,6 +108,18 @@ output/jr-summary-{date}.md    # 報告前閱讀摘要
 - COI（利益衝突）評估
 - Spin 偵測（結果過度詮釋）
 - 外在效度檢核（台灣適用性）
+
+## 自訂風格 / 模板
+
+想換成自己的版型或配色，有三條路：
+
+1. **直接在 PowerPoint 改（推薦）** —— 產出是 **native 可編輯 pptx**，不是圖片也不是唯讀檔，
+   套自家佈景主題、改字型配色、調版面都跟一般簡報一樣操作。
+2. **套自有 .pptx 範本** —— ppt-master 的 **Fill Native PPTX** 路線可把你的 .pptx 當母片硬套內容，
+   接法見 [`docs/ppt-master-integration.md`](docs/ppt-master-integration.md) §3。
+   ⚠️ 實測硬套有時版面/裝飾不搭，契合度請自行評估。
+3. **改「White Grey」風格本身** —— 版面規則全寫在 `scripts/gen_journal_svg.py`（MIT，歡迎自行修改）。
+   ⚠️ 目前**沒有參數化的模板系統**，換風格＝直接改該腳本的繪製邏輯。
 
 ## License
 

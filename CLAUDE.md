@@ -18,6 +18,7 @@
 
 ```bash
 cd journal-reading-kit
+bash bootstrap.sh   # 首次使用：一鍵裝依賴＋self-check（冪等）
 claude
 > /jr
 ```
@@ -54,6 +55,7 @@ journal-reading-kit/
 │                              # .github/copilot-instructions.md 為同內容的各平台複本
 ├── README.md
 ├── CONTRIBUTING.md
+├── bootstrap.sh               # 一鍵安裝＋self-check（冪等，支援 --check-only）
 ├── .claude/commands/jr.md     # /jr 斜線指令（轉呼叫 skills/jr.md）
 ├── skills/
 │   ├── jr.md                  # /jr 主流程（唯一入口）

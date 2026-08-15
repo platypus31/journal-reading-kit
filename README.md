@@ -29,7 +29,7 @@ bash bootstrap.sh   # 自動檢查依賴、安裝 ppt-master（約 1.2GB）、se
 ```
 
 全綠後直接啟動 AI CLI（如 `claude`）輸入 `/jr` 即可。`bash bootstrap.sh --check-only` 只檢查不安裝。
-以下為手動安裝步驟（bootstrap 做的事一樣）：
+以下是需求細節與手動安裝步驟（bootstrap 自動做的就是這些事，想自己來才需要看）：
 
 ### 需求
 

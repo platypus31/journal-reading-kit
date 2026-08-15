@@ -3,7 +3,7 @@
 丟一篇論文，自動產出三種格式：**簡報（可編輯 PowerPoint）、口頭報告逐字稿、報告前閱讀摘要**。
 適用於科內 Journal Club / Journal Reading 報告。給 AI CLI（Claude Code / Codex / Gemini CLI）使用的 skill 工具箱。
 
-> 本工具與姊妹作 [ebm-report-kit](https://github.com/platypus31/ebm-report-kit)（EBM 5A 報告產生器）**各自獨立、互不依賴**，可單獨安裝使用。
+> 本工具與姊妹作 [ebm-report-kit](https://github.com/platypus31/ebm-report-kit)（EBM 6A 報告產生器）**各自獨立、互不依賴**，可單獨安裝使用。
 
 ## 流程
 

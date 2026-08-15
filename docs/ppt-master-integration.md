@@ -31,7 +31,7 @@ journal reading: generate-output.md → content.json（簡報大綱）
 ppt-master（在 $PPT_MASTER 跑）：讀內容 + 你的 .pptx 範本 → native pptx
                                           │
                                           ▼
-產出 .pptx → ~/Desktop/jr-report.pptx（或 output/）
+產出 .pptx → <kit>/output/jr-report.pptx
 ```
 
 逐字稿（`jr-script`）與閱讀摘要（`jr-summary`）不受影響，仍由 generate-output.md 原流程產出。
@@ -54,7 +54,7 @@ $PY skills/ppt-master/scripts/template_fill_pptx.py analyze <你的範本.pptx> 
 
 ## 4. Fallback 關係
 
-`ppt-master（主路線）` → `Canva MCP` → `scripts/generate_pptx.py`（陽春 python-pptx）→ `Google Slides` → `Markdown`。
+`ppt-master（主路線）` → `ppt-master template-fill`（硬套官方範本）→ `scripts/generate_pptx.py`（陽春 python-pptx）→ `Markdown` 大綱。
 `generate_pptx.py` 保留為 fallback，不再另加載入範本功能（與 ppt-master template-fill 重複）。
 
 ## 5. 更新 ppt-master

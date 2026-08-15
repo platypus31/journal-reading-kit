@@ -22,9 +22,12 @@
 
 ### 需求
 
-- [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code)（或其他相容 AI CLI：repo 內含 AGENTS.md／GEMINI.md 設定）
-- Python 3.9+，`pymupdf`（PDF 抽圖）
-- [ppt-master](https://github.com/hugohe3/ppt-master)（SVG → 可編輯 pptx 的匯出引擎，簡報主路線必裝，安裝見下）
+- AI CLI：[Claude Code](https://docs.anthropic.com/en/docs/claude-code)、Codex CLI、Gemini CLI、Cursor 或 GitHub Copilot
+  （repo 內含 `CLAUDE.md`／`AGENTS.md`／`GEMINI.md`／`.cursorrules`／`.github/copilot-instructions.md` 五份同內容設定）
+- Python 3.9+（主引擎 `gen_journal_svg.py` 只用標準庫，不必額外裝套件）
+- [ppt-master](https://github.com/hugohe3/ppt-master) —— **唯一必裝的外部依賴**（SVG → 可編輯 pptx 的匯出引擎，安裝見下）。
+  抽圖用的 `PyMuPDF` 與 fallback 用的 `python-pptx` 都含在它的 venv 裡，**不需要另外 pip install**
+- 論文取得走 `curl`（PubMed E-utilities + Europe PMC），**零 MCP**，不需任何額外設定
 - 選配：Playwright（需 Node.js；`npx playwright install chromium`，論文網頁截圖用。本 repo 腳本全為 Python，不需要 `npm install`）
 
 ### 安裝 ppt-master
@@ -56,7 +59,15 @@ claude
 > /jr
 ```
 
-提供論文標題、PMID、DOI 或 PDF 路徑，等待產出完成。
+提供論文標題、PMID、DOI 或 PDF 路徑，等待產出完成。全程自動，不會問你要哪種簡報風格。
+
+三種產出都落在 repo 內的 `output/`（首次執行時自動建立，已 gitignore）：
+
+```
+output/jr-report.pptx          # 簡報（native 可編輯）
+output/jr-script-{date}.md     # 口頭報告逐字稿
+output/jr-summary-{date}.md    # 報告前閱讀摘要
+```
 
 ## 三種輸出
 
@@ -66,7 +77,7 @@ claude
 - 附 Supplementary 補充頁（Q&A 備用）
 - 定案「White Grey」格式：`scripts/gen_journal_svg.py` 程式生成 SVG → ppt-master 匯出 **native 可編輯** .pptx
 - 配圖：`scripts/extract_figures.py` 從論文 PDF 抽統計圖表
-- fallback 鏈：python-pptx → Markdown
+- fallback 鏈（主路線不可用時）：ppt-master template-fill → python-pptx → Markdown
 
 ### 口頭報告逐字稿
 - 每頁對應一張簡報

@@ -22,28 +22,34 @@ triggers:
 
 **內容規則**（`data/slide-template.md` 詳細版）：**英文為主、直接從 journal 原文截取**（Methods/Results 數據與關鍵句原文引述，僅 Background 概念可中文）；**條列式精簡 bullet**（每條 ≤ 60 字元，過長會被 gate 擋溢出）；一頁 3-5 條。
 
-**五步流程**（用 ppt-master venv，先取路徑：`PPT_MASTER="${PPT_MASTER_DIR:-$HOME/ppt-master}"; PY="$PPT_MASTER/.venv/bin/python"`）：
-1. **抽內容** → 依 `data/example-content.json` 格式把原文截取內容寫成 `<project>/content.json`（cover + slides 陣列：section／content／figure 三種 kind；bullet 內 `&` `<` `>` 用原字元，生成器會轉義）
-2. **抽圖表** → `$PY scripts/extract_figures.py <paper.pdf> -o <project>/figs`（PyMuPDF 抽論文統計圖表，manifest.json 記每張來源頁）
+**五步流程** —— 先設好變數再開跑（🔴 `$PROJECT` 必須是**絕對路徑**：第 4-5 步會 `cd` 進 ppt-master，相對路徑會解析到錯的目錄）：
+
+```bash
+cd <journal-reading-kit 根目錄>
+KIT_DIR="$(pwd)"
+PPT_MASTER="${PPT_MASTER_DIR:-$HOME/ppt-master}"   # ppt-master 位置，安裝見 README
+PY="$PPT_MASTER/.venv/bin/python"                  # 一律用 ppt-master 的 venv
+PROJECT="$KIT_DIR/output/<專案名>"                  # 本篇論文的工作目錄
+mkdir -p "$PROJECT"                                # output/ 不在 repo 內，首次要自己建
+```
+
+1. **抽內容** → 依 `data/example-content.json` 格式把原文截取內容寫成 `$PROJECT/content.json`（cover + slides 陣列：section／content／figure 三種 kind；bullet 內 `&` `<` `>` 用原字元，生成器會轉義）
+2. **抽圖表** → `$PY "$KIT_DIR/scripts/extract_figures.py" <paper.pdf> -o "$PROJECT/figs"`（PyMuPDF 抽論文統計圖表，manifest.json 記每張來源頁）
    - ⚠️ **全向量圖期刊（BMJ 等）抽出的是整頁 render（含文字欄）**，不能直接當 figure 用——AI 需再用 `fitz` clip 按比例精裁圖區：讀頁面目測圖的位置比例（如 forest plot 在 y 52%-93%）→ `page.get_pixmap(dpi=200, clip=fitz.Rect(w*x0, h*y0, w*x1, h*y1))`。BMJ GLP-1RA 實戰（2026-08-12）就是這樣裁出 Fig 3/7/8。裁完看縮圖確認無殘字再嵌入。
-3. **生成 SVG** → `$PY scripts/gen_journal_svg.py <project>/content.json <project>/svg_output`
-4. **品質關卡** → `cd "$PPT_MASTER" && $PY skills/ppt-master/scripts/svg_quality_checker.py <project> --quick-generate --stage final --json`（🔴 rc≠0 就修到過，通常是 bullet 過長溢出；⚠️ 改 SVG 後 gate 可能讀舊快取，換新目錄重跑最保險）
-5. **導出 pptx** → `$PY skills/ppt-master/scripts/svg_to_pptx.py <project> -o ~/Desktop/jr-report.pptx --quick-generate`（🔴 **rc=0 且 `ls` 確認檔案存在才算完成**，rc=1 = gate 沒過 = 沒有產檔）
+3. **生成 SVG** → `$PY "$KIT_DIR/scripts/gen_journal_svg.py" "$PROJECT/content.json" "$PROJECT/svg_output"`
+4. **品質關卡** → `(cd "$PPT_MASTER" && $PY skills/ppt-master/scripts/svg_quality_checker.py "$PROJECT" --quick-generate --stage final --json)`（🔴 rc≠0 就修到過，通常是 bullet 過長溢出；⚠️ 改 SVG 後 gate 可能讀舊快取，換新目錄重跑最保險；括號包成 subshell，跑完自動回到 kit 目錄）
+5. **導出 pptx** → `(cd "$PPT_MASTER" && $PY skills/ppt-master/scripts/svg_to_pptx.py "$PROJECT" -o "$KIT_DIR/output/jr-report.pptx" --quick-generate)`（🔴 **rc=0 且 `ls "$KIT_DIR/output/jr-report.pptx"` 確認檔案存在才算完成**，rc=1 = gate 沒過 = 沒有產檔）
 
 圖表插入：目前 figure 頁是佔位框，`extract_figures` 抽出的圖由使用者在 PowerPoint 內拖入（或後續版本自動嵌入）。
 
-**備選（不用主路線時）**：ppt-master `template-fill` 硬套官方範本（`data/pptx-templates/template-primary-minimalist.pptx` primary／`template-fallback-thesis.pptx` fallback，模板一律絕對路徑）——實測判定「硬套會有時序版面/無關裝飾不搭」，僅在明確要求時用。
+**備選（不用主路線時）**：ppt-master `template-fill` 硬套官方範本（primary＝`"$KIT_DIR/data/pptx-templates/template-primary-minimalist.pptx"`／fallback＝`"$KIT_DIR/data/pptx-templates/template-fallback-thesis.pptx"`，🔴 餵給 ppt-master 的模板路徑一律用絕對路徑）——實測判定「硬套會有時序版面/無關裝飾不搭」，僅在明確要求時用。
 
-**（更舊的）其他 fallback chain（Canva/GSlides）：**
-1. **Canva MCP** → 交付 Canva 設計連結
-2. **python-pptx** → `python3 scripts/generate_pptx.py slides.json ~/Desktop/jr-report.pptx`
-   - 產出的 .pptx 可直接用 PowerPoint / Keynote 編輯
-   - 也可上傳到 Google Slides 編輯（Google Drive → 上傳 → 用 Google Slides 開啟）
-3. **Google Slides**（如使用者偏好）→ 產出 Markdown 大綱，引導使用者：
-   - 開啟 Google Slides → 選擇主題
-   - 按照大綱逐頁建立投影片
-   - 或使用 Markdown to Google Slides 工具（如 md2gslides）
-4. **Markdown** → 輸出到 `output/jr-slides-{date}.md`，可匯入任何簡報工具
+**Fallback chain（主路線不可用時依序往下降，全部零 MCP）：**
+1. **ppt-master template-fill** → 硬套官方範本（同上「備選」）
+2. **python-pptx** → `python3 "$KIT_DIR/scripts/generate_pptx.py" slides.json "$KIT_DIR/output/jr-report.pptx"`
+   - ⚠️ 這條吃的是**舊 `slides.json` schema**（欄位見 `scripts/generate_pptx.py` docstring），**與主路線的 `content.json` 不通用**，降級時要另外轉一份
+   - 產出的 .pptx 可直接用 PowerPoint / Keynote 編輯，也可上傳 Google Drive 用 Google Slides 開啟
+3. **Markdown** → 輸出到 `output/jr-slides-{date}.md`，可匯入任何簡報工具（Google Slides 可用 md2gslides 之類工具轉入）
 
 每次 fallback 時通知使用者：「[上一層方法] 無法使用，已自動切換到 [下一層方法]。」
 
@@ -80,8 +86,8 @@ Sonnet 可跑但內容選擇較平、裁圖與除錯較弱，僅適合草稿或 
 
 告知使用者三個檔案的位置：
 ```
-簡報: [Canva 連結 / ~/Desktop/jr-report.pptx / output/jr-slides-{date}.md]
-逐字稿: output/jr-script-{date}.md
+簡報:     output/jr-report.pptx（native 可編輯；降到 Markdown 時為 output/jr-slides-{date}.md）
+逐字稿:   output/jr-script-{date}.md
 閱讀摘要: output/jr-summary-{date}.md
 ```
 

@@ -1,6 +1,8 @@
 .DS_Store
 *.pyc
 __pycache__/
+.venv/
+venv/
 output/
 .claude/*
 !.claude/commands/

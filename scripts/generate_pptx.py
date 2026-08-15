@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 """
 Journal Reading Report PowerPoint Generator (Fallback)
-When Canva MCP is unavailable, use python-pptx to generate an editable .pptx file.
+Fallback for when the ppt-master main route is unavailable: uses python-pptx to
+generate an editable .pptx directly, with no external dependency beyond python-pptx.
+
+NOTE: this fallback consumes the older `slides.json` schema documented below, which is
+NOT the same as the `content.json` schema used by the main engine (gen_journal_svg.py).
 
 Usage:
-    python3 scripts/generate_pptx.py slides.json output.pptx
+    python3 scripts/generate_pptx.py slides.json output/jr-report.pptx
 
 slides.json format:
 {
@@ -497,8 +501,9 @@ def main():
         description="Journal Reading Report PowerPoint 產生器 — 將 JSON 簡報資料轉換為 .pptx 檔案",
         epilog=(
             "範例：\n"
-            "  python3 generate_pptx.py slides.json output.pptx\n"
-            "  python3 generate_pptx.py slides.json ~/Desktop/jr-report.pptx\n\n"
+            "  python3 scripts/generate_pptx.py slides.json output/jr-report.pptx\n\n"
+            "⚠️ 本 fallback 吃舊的 slides.json schema，與主路線 gen_journal_svg.py 的\n"
+            "   content.json 不通用。\n\n"
             "JSON 格式說明：\n"
             "  必要欄位：title (字串), style (formal|clean|teaching|competition), slides (陣列)\n"
             "  每張投影片的 type 可為：title, section, content, two_column, table\n"

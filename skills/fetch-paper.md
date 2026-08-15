@@ -52,7 +52,7 @@ python3 -c "import pymupdf; print(len(pymupdf.open('paper.pdf')))"
 - 取不到全文（無 PMCID / 非 open access）→ 使用者有 PDF 就讀 PDF；都沒有 → 僅用摘要並標註限制。
 - 有 PubMed MCP 的環境可改用 `mcp__*__get_full_text_article` 替代。
 
-### 4. 論文結構解析
+### 3. 論文結構解析
 
 如果取得全文，拆解為以下段落：
 - Abstract

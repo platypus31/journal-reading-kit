@@ -13,7 +13,8 @@ triggers:
 2. **口頭報告逐字稿** — 報告時照著念/參考
 3. **報告前閱讀摘要** — 給聽眾的 1-2 頁精簡摘要
 
-**全程自動，不中斷。** 唯一會問的問題是簡報模板選擇。
+**全程自動，不中斷，不詢問任何格式選項**（簡報格式已定案「White Grey 取風格版」，見 Step 2）。
+唯一會停下來問的情況是**論文本身找不到**；全文取不到時**不中斷**，自動改用摘要分析並標註限制（見 Step 1 與下方「錯誤處理」）。
 
 ---
 
@@ -27,7 +28,7 @@ triggers:
 
 自動執行 `skills/fetch-paper.md`：
 - 取得完整 metadata（標題、作者、期刊、年份、DOI）
-- 嘗試取得全文（PubMed full text → Playwright 抓取 → 使用者提供 PDF）
+- 嘗試取得全文（Europe PMC 全文 PDF／XML，走 curl 零 MCP → 取不到就用使用者提供的 PDF → 都沒有則僅用摘要並標註限制）
 - **自動確認最佳匹配結果，不需使用者確認**
 - 如果搜尋結果明顯不符（例如標題差異過大），才回報請使用者確認
 
@@ -92,8 +93,8 @@ triggers:
   ✅ Journal Reading 報告完成
 ══════════════════════════════════════════
 
-簡報: <project>/06_slides/jr-report.pptx（native 可編輯）
-逐字稿: output/jr-script-{date}.md
+簡報:     output/jr-report.pptx（native 可編輯）
+逐字稿:   output/jr-script-{date}.md
 閱讀摘要: output/jr-summary-{date}.md
 ```
 

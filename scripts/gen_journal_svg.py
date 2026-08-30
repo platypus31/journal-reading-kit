@@ -92,29 +92,47 @@ def wrap_bullet(b, limit=62):
     return lines
 
 def cjk_wrap(s, units):
-    """中文感知斷行：全形字 2 單位、半形 1 單位；連續 ASCII 視為一個詞不從中間腰斬
-    （避免 COVID-19 被拆成 C/OVID-19）。詞本身超過整行寬才退回逐字元斷。"""
-    tokens = re.findall(r"[\x20-\x7E]+|[^\x20-\x7E]", str(s))
+    """中文感知斷行：全形字 2 單位、半形 1 單位。
+
+    token 化以「空白為界」（`[\\x21-\\x7E]+` 一個英文詞、`[\\x20]+` 空白、其餘逐字元），
+    所以英文只在字間斷、不從單字中腰斬（舊版把含空格的整串 ASCII 當單一 token，
+    整句英文必然掉進逐字元硬切分支，產出 asso/ciated、ti/ssue 級斷詞）。
+    只有「單一詞本身寬過整行」才退回逐字元硬切。"""
+    tokens = re.findall(r"[\x21-\x7E]+|[\x20]+|[^\x20-\x7E]", str(s))
     def width(t):
         return sum(2 if ord(ch) > 0x2E80 else 1 for ch in t)
     lines, cur, u = [], "", 0
+    def flush():
+        # strip 後是空的就別塞進去：空白自成 token 後，「cur 只剩空白」是常態
+        # （例：cjk_wrap(" hello", 5) 舊寫法會回 ['', 'hello'] 多一條空行印到版面上）
+        # 頭尾都要去：首行放得下時前導空白會併進 cur（u=0 恆滿足），只 rstrip 會讓
+        # cjk_wrap(" ab cd", 20) 回 [' ab cd'] 在版面上多一格縮排（全形空白縮排不受影響）
+        nonlocal cur, u
+        stripped = cur.strip(" ")
+        if stripped:
+            lines.append(stripped)
+        cur, u = "", 0
     for t in tokens:
         w = width(t)
-        if u + w <= units or not cur and w <= units:
+        if u + w <= units:
             cur += t; u += w
             continue
-        if w > units:  # 超長 ASCII 串：先斷行再逐字元硬切
+        if t == " " * len(t):  # 行尾放不下的空白直接丟棄（換行本身即分隔）
             if cur:
-                lines.append(cur); cur, u = "", 0
+                flush()
+            continue
+        if w > units:  # 單一詞寬過整行（超長化學名／URL）：唯一容許逐字元硬切的情況
+            if cur:
+                flush()
             for ch in t:
                 cw = width(ch)
                 if u + cw > units and cur:
-                    lines.append(cur); cur, u = "", 0
+                    flush()
                 cur += ch; u += cw
         else:
-            lines.append(cur); cur, u = t.lstrip(), width(t.lstrip())
+            flush(); cur, u = t, w
     if cur:
-        lines.append(cur)
+        flush()
     return lines or [""]
 
 def _valid_image_bytes(path):
@@ -199,7 +217,15 @@ def table(outdir, idx, title, headers, rows, widths=None, note=None):
             cx += colw[i]
         y += rh
     if note:
-        s.append(txt(x0, min(y + 34, 690), note, 19, "#8A9099", "400", ls="0.2"))
+        # note 也要斷行：單行 note 超過欄寬會橫向出血，而 gate 只驗直向溢出（橫向出血是零訊號）
+        # 🔴 刻意不把 note 往上夾（舊版 min(y+34, 690)）：夾上去會壓在表格上，那是 gate 看不見的重疊；
+        #    讓它照實往下畫，超出畫布由 _warn_overflow 與 ppt-master gate 的直向溢出檢查抓得到。
+        nfs, nlh = 19, 24
+        ny = y + 34
+        for ln in cjk_wrap(note, max(int(tw / (nfs * 0.52)), 8)):
+            s.append(txt(x0, ny, ln, nfs, "#8A9099", "400", ls="0.2")); ny += nlh
+        y = ny  # ny 已越過最後一行基線一個 nlh＝該行底緣（同 textcard/content 的慣例）；
+                # 傳基線（ny - nlh）會少算一行高，最後一行畫出畫布仍不觸發 _warn_overflow
     _warn_overflow("table", title, y)
     write(outdir, idx, "t_" + slug(title), s)
 

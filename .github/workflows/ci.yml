@@ -11,3 +11,7 @@ jobs:
         run: python -m py_compile scripts/*.py
       - name: json valid
         run: python -c "import json,glob; [json.load(open(f)) for f in glob.glob('data/**/*.json',recursive=True)]; print('json ok')"
+      - name: install test deps
+        run: pip install pytest          # tests/ 只用標準庫，pytest 本身就夠
+      - name: pytest
+        run: python -m pytest tests -q

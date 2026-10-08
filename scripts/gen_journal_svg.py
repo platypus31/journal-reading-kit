@@ -275,12 +275,57 @@ def content(outdir, idx, title, bullets):
     _warn_overflow("content", title, y)
     write(outdir, idx, "c_" + slug(title), s)
 
-def figure(outdir, idx, title, caption, path=None, hl=None):
-    """圖表頁：path 給了且檔案存在 → base64 內嵌實圖（codex P1 修復）；否則佔位框。"""
+def figure(outdir, idx, title, caption, path=None, hl=None, bullets=None):
+    """圖表頁：path 給了且檔案存在 → base64 內嵌實圖（codex P1 修復）；否則佔位框。
+    bullets（可選，2026-10-08 新增）：題目／判定文字列在圖片上方、同一頁（EBM APPRAISE
+    「評讀題目＋原文佐證截圖」合頁用——使用者 10/08 第三輪退件要求「題目列在上面、下面附截圖」，
+    不要題目頁與截圖頁分開兩張）。不給 bullets 時版面與行為完全不變（零回歸風險）。"""
+    # codex review P2/P3（三輪累積）：型別守門移到標題字級決定「之前」——bullets 是非 list 的
+    # truthy 值（如字串）時，若先寫了 34 號標題才發現要忽略，標題字級與最終版面（無 bullets）會對不上。
+    if bullets is not None and not isinstance(bullets, (list, tuple)):
+        sys.stderr.write(f"WARN figure「{title}」：bullets 必須是陣列，收到 {type(bullets).__name__}，已忽略\n")
+        bullets = None
     s = head()
     s.append(dots(70, 70))
-    s.append(txt(90, 120, title, 46, ls="1.2"))
+    s.append(txt(90, 120, title, 34 if bullets else 46, ls="1.2"))
     s.append('<line x1="90" y1="145" x2="1190" y2="145" stroke="#C4C9D0" stroke-width="2"/>')
+    raw_overflow_y = None  # codex review P2：溢出警告用未夾住的真實值，夾住的 cap_y 會讓警告永遠不觸發
+    if bullets:
+        y = 180
+        truncated = False
+        for b in bullets:
+            if y > 480:
+                truncated = True
+                break
+            # codex review P2（第二輪）：元素非字串（None／數字／dict）會讓 cjk_wrap 炸或亂排，
+            # 比照 content() 的寫法統一轉字串；None/空字串整條跳過不留空行。
+            if b is None:
+                continue
+            b = str(b)
+            if not b:
+                continue
+            lines = cjk_wrap(b, 84)
+            for ln in lines:
+                # codex review P2（第三輪）：單一 bullet 折成很多行時，外層「bullet 開頭才檢查 y」
+                # 攔不住——改成逐行檢查，一超過上限就整條頁面的 bullet 繪製直接收手。
+                if y > 480:
+                    truncated = True
+                    break
+                s.append(txt(105, y, ln, 19, "#2A2A2A", "400", ls="0.2"))
+                y += 27
+            if truncated:
+                break
+            y += 5
+        if truncated:
+            sys.stderr.write(f"WARN figure「{title}」：bullets 太多，圖片區會被擠出畫布/與 caption 重疊，已截斷後續 bullet——內容過長，拆成兩頁或精簡文字\n")
+        img_y0 = max(y + 8, 170)
+        img_h = max(630 - img_y0, 140)
+        if img_y0 + 140 >= 630:  # codex review P2（第四輪）：被夾到下限＝圖只剩 140px 高，值得主動提醒
+            sys.stderr.write(f"WARN figure「{title}」：bullets 把圖片區壓到最小高度（140px），畫面會很擠——考慮精簡文字\n")
+        cap_y = min(img_y0 + img_h + 22, 695)
+        raw_overflow_y = img_y0 + img_h + 42  # 未夾住：bullets 太多把圖擠出畫布時這裡會 > 720
+    else:
+        img_y0, img_h, cap_y = 170, 440, 655
     embedded = False
     raw = _valid_image_bytes(path)  # 驗 magic bytes（擋 0-byte／崩潰半成品／非圖片；只 isfile 會靜默嵌空圖）
     if raw is not None:
@@ -288,7 +333,7 @@ def figure(outdir, idx, title, caption, path=None, hl=None):
         mime = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg"}.get(ext)
         if mime:
             b64 = base64.b64encode(raw).decode()
-            s.append(f'<image x="240" y="170" width="800" height="440" '
+            s.append(f'<image x="240" y="{img_y0}" width="800" height="{img_h}" '
                      f'preserveAspectRatio="xMidYMid meet" href="data:{mime};base64,{b64}"/>')
             embedded = True
             if hl:
@@ -301,9 +346,9 @@ def figure(outdir, idx, title, caption, path=None, hl=None):
                     sys.stderr.write(f"WARN figure「{title}」：紅框僅支援 PNG（此圖非 PNG 或讀不到尺寸），已略過\n")
                 else:
                     iw, ih = sz
-                    sc = min(800 / iw, 440 / ih)
+                    sc = min(800 / iw, img_h / ih)
                     dw, dh = iw * sc, ih * sc
-                    dx, dy = 240 + (800 - dw) / 2, 170 + (440 - dh) / 2
+                    dx, dy = 240 + (800 - dw) / 2, img_y0 + (img_h - dh) / 2
                     rx0, ry0, rx1, ry1 = hl
                     s.append(f'<rect x="{dx + rx0 * dw:.1f}" y="{dy + ry0 * dh:.1f}" '
                              f'width="{max((rx1 - rx0) * dw, 0):.1f}" height="{max((ry1 - ry0) * dh, 0):.1f}" '
@@ -313,9 +358,29 @@ def figure(outdir, idx, title, caption, path=None, hl=None):
     elif path:
         sys.stderr.write(f"WARN figure「{title}」：圖檔缺失或無效（{path}），改用佔位框\n")
     if not embedded:
-        s.append('<rect x="240" y="200" width="800" height="380" fill="#FFFFFF" stroke="#B0B6BE" stroke-width="2" stroke-dasharray="10 8"/>')
-        s.append(txt(W/2, 380, "[ Journal Figure ]", 34, "#8A9099", "700", "middle"))
-    s.append(txt(W/2, 655, caption, 22, "#8A9099", "400", "middle"))
+        # codex review P3：無 bullets 時佔位框座標要與原版完全一致（200/380/380），
+        # 否則「不給 bullets 時版面與行為完全不變」的宣稱不成立（既有無圖佔位頁會跟著回歸）。
+        if bullets:
+            # codex review P3（第二輪）：佔位框高度跟 cap_y 連動，img_h 被夾到下限 140 時
+            # 框底（img_y0+15+height）不會超出 cap_y，不會壓到下方 caption。
+            # codex review P2（第三輪）：ph_h 下限 60 在極端擠壓情況仍可能讓框底超過 cap_y、
+            # 與 caption 重疊；沒有足夠空間（<75px）時乾脆不畫佔位框，只留 caption——
+            # 少畫一個裝飾框不影響資訊完整性，畫出去壓字才是真正的版面壞掉。
+            avail = cap_y - 30 - (img_y0 + 15)
+            if avail >= 75:
+                ph_h = min(img_h - 30, avail)
+                s.append(f'<rect x="240" y="{img_y0 + 15}" width="800" height="{ph_h}" fill="#FFFFFF" stroke="#B0B6BE" stroke-width="2" stroke-dasharray="10 8"/>')
+                s.append(txt(W/2, img_y0 + ph_h/2 + 15, "[ Journal Figure ]", 34, "#8A9099", "700", "middle"))
+            else:
+                sys.stderr.write(f"WARN figure「{title}」：bullets 把版面擠到沒空間畫佔位框，已略過（caption 仍會畫）\n")
+        else:
+            s.append('<rect x="240" y="200" width="800" height="380" fill="#FFFFFF" stroke="#B0B6BE" stroke-width="2" stroke-dasharray="10 8"/>')
+            s.append(txt(W/2, 380, "[ Journal Figure ]", 34, "#8A9099", "700", "middle"))
+    s.append(txt(W/2, cap_y, caption, 22, "#8A9099", "400", "middle"))
+    # codex review P3：_warn_overflow 只在新的 bullets 路徑才呼叫（既有無 bullets 路徑維持原本
+    # 「不檢查」行為不變，避免既有頁面突然冒出沒人處理過的溢出警告）；P2：用未夾住的 raw_overflow_y。
+    if bullets:
+        _warn_overflow("figure", title, raw_overflow_y)
     write(outdir, idx, "fig_" + slug(title), s)
 
 VALID_KINDS = {"section", "figure", "table", "textcard", "content"}
@@ -371,7 +436,7 @@ def build(content_path, outdir):
     n = 1
     cover(outdir, f"{n:02d}", data.get("cover") or {}); n += 1
     dispatch = {"section": lambda idx, sl: section(outdir, idx, sl.get("name", "")),
-                "figure": lambda idx, sl: figure(outdir, idx, sl.get("title", "Figure"), sl.get("caption", ""), sl.get("path"), sl.get("hl")),
+                "figure": lambda idx, sl: figure(outdir, idx, sl.get("title", "Figure"), sl.get("caption", ""), sl.get("path"), sl.get("hl"), sl.get("bullets")),
                 "table": lambda idx, sl: table(outdir, idx, sl.get("title", ""), sl.get("headers", []), sl.get("rows", []), sl.get("widths"), sl.get("note")),
                 "textcard": lambda idx, sl: textcard(outdir, idx, sl.get("title", ""), sl.get("paragraphs", []), sl.get("quote"), sl.get("caption")),
                 "content": lambda idx, sl: content(outdir, idx, sl.get("title", ""), sl.get("bullets", []))}

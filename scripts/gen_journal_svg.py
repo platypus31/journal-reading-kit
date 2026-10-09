@@ -187,14 +187,47 @@ def table(outdir, idx, title, headers, rows, widths=None, note=None):
     ws = widths or [1] * n
     tot = sum(ws)
     colw = [tw * w / tot for w in ws]
-    fs, lh, pad = 20, 26, 10
-    # 預斷行（欄寬→可容單位：字寬約 fs*0.52 半形）
-    def cell_lines(text, cw):
-        return cjk_wrap(text, max(int((cw - 2 * pad) / (fs * 0.52)), 4))
-    header_lines = [cell_lines(h, colw[i]) for i, h in enumerate(headers)]
-    row_lines = [[cell_lines(c, colw[i]) for i, c in enumerate(r)] for r in rows]
-    def row_h(cells):
-        return max(len(c) for c in cells) * lh + 2 * pad
+    fs0, lh0, pad0 = 20, 26, 10
+    # 2026-10-08 新增：密集表（EBM 評讀總表一題一列塞 17+ 列；效應量總表列少但每格文字長會
+    # 多行折行）在預設字級下常溢出 720 畫布——不是靠拆頁（spec 規定「合併成單一頁，不另開頁」），
+    # 而是試幾個遞減的縮放比例，用「實際斷行後的高度」挑第一個塞得下的（原本只用列數粗估，
+    # 列少但格內文字長仍會溢出，如 8 列的效應量總表含長算式理由欄）。列數/格長都短的表
+    # scale=1.0 時行為與原本完全相同。
+    # codex review P2 實測：這裡曾經寫 `budget = 670 - y0` 又在迴圈內判斷 `y0 + total_h <= budget`，
+    # 等於要求 `total_h <= 670 - 2*y0`——y0 被扣了兩次，原本塞得下的表會被多縮一級字級，
+    # 跟「短表 scale=1.0 行為與原本完全相同」的宣稱不符。budget 改成畫布底線本身（含緩衝）。
+    budget = 670  # 畫布底線 720 留足緩衝（_warn_overflow 門檻 700），避免貼邊溢出
+    # note 的字級/行高是固定值（不隨 scale 縮放），但它畫在表格下方、佔掉的高度一樣要算進
+    # 「塞不塞得下」的判斷——否則表格本身卡在 budget 邊緣剛好過關，note 一畫上去還是溢出
+    # （2026-10-08 實測：8 列效應量總表＋長 note，表格 scale=0.85 剛好 <670，加 note 後到 742）。
+    note_extra = 0
+    if note:
+        note_lines = cjk_wrap(note, max(int(tw / (19 * 0.52)), 8))
+        note_extra = 34 + len(note_lines) * 24
+    chosen = None
+    for scale in (1.0, 0.85, 0.7, 0.6, 0.5, 0.42):
+        # codex review P3：fs0*scale 等浮點運算會產生 8.399999999999999 這類長尾數，
+        # SVG font-size 屬性雖不會因此壞掉，但 round(_, 1) 讓輸出乾淨。
+        fs, lh, pad = round(fs0 * scale, 1), round(lh0 * scale, 1), round(max(pad0 * scale, 3), 1)
+
+        def cell_lines(text, cw, _fs=fs, _pad=pad):
+            return cjk_wrap(text, max(int((cw - 2 * _pad) / (_fs * 0.52)), 4))
+
+        header_lines = [cell_lines(h, colw[i]) for i, h in enumerate(headers)]
+        row_lines = [[cell_lines(c, colw[i]) for i, c in enumerate(r)] for r in rows]
+
+        def row_h(cells, _lh=lh, _pad=pad):
+            return max(len(c) for c in cells) * _lh + 2 * _pad
+
+        total_h = row_h(header_lines) + sum(row_h(cells) for cells in row_lines)
+        chosen = (fs, lh, pad, header_lines, row_lines, row_h, total_h)
+        if y0 + total_h + note_extra <= budget:
+            break
+    else:
+        # codex review P3：6 個 scale 都塞不下時直接沿用最後一次（約 8.4px，幾乎不可讀）卻沒有
+        # 任何警告——下面的 `_warn_overflow("table", ...)` 只在畫完才檢查，這裡先主動提醒一次。
+        sys.stderr.write(f"WARN table「{title}」：縮到最小字級（scale=0.42）仍可能溢出，考慮拆頁或精簡內容\n")
+    fs, lh, pad, header_lines, row_lines, row_h, _ = chosen
     y = y0
     # header
     hh = row_h(header_lines)
@@ -228,6 +261,115 @@ def table(outdir, idx, title, headers, rows, widths=None, note=None):
                 # 傳基線（ny - nlh）會少算一行高，最後一行畫出畫布仍不觸發 _warn_overflow
     _warn_overflow("table", title, y)
     write(outdir, idx, "t_" + slug(title), s)
+
+def _fc_arrow_down(x, y, color):
+    """向下箭頭三角（不用 <marker>——svg_to_pptx 對 marker 轉 native 的支援沒驗證過，直接畫三角形最穩）。"""
+    return f'<path d="M{x-8:.1f} {y-13:.1f} L{x+8:.1f} {y-13:.1f} L{x:.1f} {y:.1f} Z" fill="{color}"/>'
+
+def _fc_arrow_right(x, y, color):
+    return f'<path d="M{x-13:.1f} {y-8:.1f} L{x-13:.1f} {y+8:.1f} L{x:.1f} {y:.1f} Z" fill="{color}"/>'
+
+def flowchart(outdir, idx, title, steps, excluded=None, note=None):
+    """PRISMA 式由上而下篩選流程圖（EBM ACQUIRE「選文流程」頁，2026-10-09 新增）：
+    steps=[{label,n,detail?}, ...] 由上到下的主線方框；excluded=[{after,n,reasons:[...]}, ...]
+    在 steps[after]→steps[after+1] 的連接處往右拉出排除分支。方框／箭頭＝rect/path，
+    pptx 端轉成可編輯原生形狀與文字框（與 table() 同一套做法）。數字一律由呼叫端從
+    content.json 既有資料算好傳入，本函式不做任何推算，只負責畫。"""
+    s = head()
+    s.append(waves(1150, 90, 12, 12, 34, 160, 0.6, -1)); s.append(dots(70, 70))
+    s.append(txt(90, 120, title, 46, ls="1.2"))
+    s.append('<line x1="90" y1="145" x2="1190" y2="145" stroke="#C4C9D0" stroke-width="2"/>')
+    if not steps:
+        raise SystemExit(f"flowchart「{title}」：steps 不可為空")
+    excluded = excluded or []
+    exmap = {}
+    for e in excluded:
+        a = e.get("after")
+        # codex review P3（round1 Cloudflare）：a 的型別/範圍檢查要在建立 exmap 關聯之前就擋，
+        # 不要等迴圈跑到一半才發現；bool 是 int 子類別會混過 isinstance 檢查，先排除。
+        if isinstance(a, bool) or not isinstance(a, int) or not (0 <= a < len(steps) - 1):
+            raise SystemExit(f"flowchart「{title}」：excluded.after={a!r} 必須是 0..{len(steps)-2} 的整數")
+        n_ex = e.get("n", 0)
+        # codex review P2（round1 Sonnet）：flowchart() 被直接呼叫（不經 validate_content）時
+        # n 可能是 None/字串，sum() 會 TypeError；這裡比照 steps 的數字檢查，給友善錯誤。
+        if isinstance(n_ex, bool) or not isinstance(n_ex, (int, float)):
+            raise SystemExit(f"flowchart「{title}」：excluded.n={n_ex!r} 必須是數字")
+        for r in (e.get("reasons") or []):
+            # codex review P2（round1 Sonnet）：reasons 元素非字串（如 dict）會被 f-string
+            # 靜默印成 repr，在這裡先擋掉比在 validate_content 補更貼近實際出錯點。
+            if isinstance(r, bool) or not isinstance(r, (str, int, float)):
+                raise SystemExit(f"flowchart「{title}」：excluded.reasons 的元素必須是文字/數字，收到 {type(r).__name__}")
+        exmap.setdefault(a, []).append(e)
+
+    x0, box_w = 150, 480
+    x1 = x0 + box_w
+    xc = (x0 + x1) / 2
+    y = 165
+    gap = 40
+    boxes = []  # (top, bottom)
+    fs_label, fs_n, fs_detail = 20, 26, 15.5
+    for i, st in enumerate(steps):
+        label = str(st.get("label", ""))
+        n = st.get("n")
+        # codex review P3（round1 Sonnet）：bool 是 int 子類別，True 會混過數字檢查顯示成「n = 1」。
+        if isinstance(n, bool) or not isinstance(n, (int, float)):
+            raise SystemExit(f"flowchart「{title}」：steps[{i}].n 必須是數字")
+        detail = st.get("detail")
+        label_lines = cjk_wrap(label, 40) or [""]
+        detail_lines = cjk_wrap(str(detail), 50) if detail else []
+        pad = 14
+        h = pad * 2 + len(label_lines) * 25 + 34 + len(detail_lines) * 20
+        top, bottom = y, y + h
+        s.append(f'<rect x="{x0}" y="{top:.0f}" width="{box_w}" height="{h:.0f}" rx="10" fill="#FFFFFF" stroke="#3D434B" stroke-width="2.4"/>')
+        ty = top + pad + 19
+        for ln in label_lines:
+            s.append(txt(xc, ty, ln, fs_label, "#17293A", "700", "middle")); ty += 25
+        ty += 7
+        s.append(txt(xc, ty, f"n = {n:g}", fs_n, "#17293A", "700", "middle")); ty += 30
+        for ln in detail_lines:
+            s.append(txt(xc, ty, ln, fs_detail, "#5B6572", "400", "middle")); ty += 20
+        boxes.append((top, bottom))
+        y = bottom + gap
+    final_y = boxes[-1][1]
+    prev_excl_bottom = None  # codex review P2（round1 Sonnet）：連續 after=i,i+1 的排除框若
+    # 各自只以自己的 mid_y 置中，reasons 多到框高超過 box 高＋gap 時會互相覆蓋；記住前一個
+    # 排除框的底緣，下一個框頂緣不夠低就整塊下推。
+    for i in range(len(steps) - 1):
+        bottom_i = boxes[i][1]
+        top_next = boxes[i + 1][0]
+        mid_y = (bottom_i + top_next) / 2
+        # 主線箭頭（有無排除分支都要畫，原本 if/else 兩份重複——codex review P3 建議抽出來一份）
+        s.append(f'<path d="M{xc:.0f} {bottom_i:.0f} L{xc:.0f} {mid_y - 13:.0f}" stroke="#2B3A4A" stroke-width="3" fill="none"/>')
+        s.append(_fc_arrow_down(xc, mid_y, "#2B3A4A"))
+        s.append(f'<path d="M{xc:.0f} {mid_y:.0f} L{xc:.0f} {top_next:.0f}" stroke="#2B3A4A" stroke-width="3" fill="none"/>')
+        exs = exmap.get(i)
+        if exs:
+            total_n = sum(e.get("n", 0) for e in exs)
+            reason_lines = []
+            for e in exs:
+                for r in (e.get("reasons") or []):
+                    reason_lines.extend(cjk_wrap(f"• {r}", 46))
+            ex_x0, ex_w = x1 + 75, 430
+            pad = 12
+            eh = pad * 2 + 30 + len(reason_lines) * 19
+            ey_top = max(mid_y - eh / 2, 150)
+            if prev_excl_bottom is not None and ey_top < prev_excl_bottom + 8:
+                ey_top = prev_excl_bottom + 8
+            s.append(f'<path d="M{xc + 14:.0f} {mid_y:.0f} L{ex_x0 - 13:.0f} {mid_y:.0f}" stroke="#C0392B" stroke-width="3" fill="none"/>')
+            s.append(_fc_arrow_right(ex_x0, mid_y, "#C0392B"))
+            s.append(f'<rect x="{ex_x0:.0f}" y="{ey_top:.0f}" width="{ex_w}" height="{eh:.0f}" rx="8" fill="#FFF7F5" stroke="#C0392B" stroke-width="2.2"/>')
+            ty = ey_top + pad + 20
+            s.append(txt(ex_x0 + ex_w / 2, ty, f"Excluded, n = {total_n:g}", 19, "#C0392B", "700", "middle")); ty += 27
+            for ln in reason_lines:
+                s.append(txt(ex_x0 + 16, ty, ln, 14.5, "#5B2A24", "400", "start")); ty += 19
+            prev_excl_bottom = ey_top + eh
+            final_y = max(final_y, prev_excl_bottom)
+    y = final_y + 10
+    if note:
+        for ln in cjk_wrap(note, 92):
+            s.append(txt(x0, y + 24, ln, 16, "#8A9099", "400", ls="0.2")); y += 24
+    _warn_overflow("flowchart", title, y)
+    write(outdir, idx, "fc_" + slug(title), s)
 
 def textcard(outdir, idx, title, paragraphs, quote=None, caption=None):
     """敘事文字卡頁（臨床情境／臨床回覆）：白卡框＋逐行 text → pptx 端整段可編輯。"""
@@ -264,33 +406,72 @@ def content(outdir, idx, title, bullets):
     s.append(waves(1150,90,12,12,34,160,0.6,-1)); s.append(dots(70,70))
     s.append(txt(90, 120, title, 46, ls="1.2"))
     s.append('<line x1="90" y1="145" x2="1190" y2="145" stroke="#C4C9D0" stroke-width="2"/>')
-    y = 225
-    for b in bullets:
-        lines = cjk_wrap(b, 76)  # 中文感知斷行（wrap_bullet 用 len() 對全形字寬算錯，會溢出畫布）
-        s.append(f'<circle cx="108" cy="{y-9:.0f}" r="6" fill="#6B7280"/>')
+    y0 = 225
+    # 2026-10-08 新增：長 bullet（如 EBM Limitation 兩段式／台灣在地考量實查文字）在預設字級
+    # 下會溢出 720 畫布——試幾個遞減的縮放比例，挑第一個能塞進畫布的；都不行就用最小字級
+    # （寧可字小也不要溢出），不影響既有短 bullet 頁（scale=1.0 時行為與原本完全相同）。
+    fs0, lh0, gap0, units0 = 25, 38, 30, 76
+    chosen = None
+    for scale in (1.0, 0.9, 0.8, 0.7, 0.6, 0.55):
+        units = max(int(units0 / scale), units0)
+        wrapped = [cjk_wrap(b, units) for b in bullets]
+        y = y0 + sum(len(lines) * (lh0 * scale) + (gap0 * scale) for lines in wrapped)
+        chosen = (scale, units, wrapped, y)
+        if y <= 690:
+            break
+    scale, units, wrapped, _ = chosen
+    # codex review P1→P2（round2，CONSENSUS 2/2）：fs0*scale 等浮點運算會產生
+    # 8.399999999999999 這類長尾數；table() 已 round(_, 1)，這裡比照同步（SVG 不會因此壞掉，
+    # 純粹輸出乾淨 + txt() 確認可接受 float）。
+    fs, lh, gap = round(fs0 * scale, 1), round(lh0 * scale, 1), round(gap0 * scale, 1)
+    y = y0
+    for lines in wrapped:
+        s.append(f'<circle cx="108" cy="{y - lh * 0.24:.0f}" r="{6 * scale:.1f}" fill="#6B7280"/>')
         for ln in lines:
-            s.append(txt(132, y, ln, 25, "#2A2A2A", "400", ls="0.2"))
-            y += 38
-        y += 30
+            s.append(txt(132, y, ln, fs, "#2A2A2A", "400", ls="0.2"))
+            y += lh
+        y += gap
     _warn_overflow("content", title, y)
     write(outdir, idx, "c_" + slug(title), s)
 
-def figure(outdir, idx, title, caption, path=None, hl=None, bullets=None):
+def figure(outdir, idx, title, caption, path=None, hl=None, bullets=None, layout=None, notes=None):
     """圖表頁：path 給了且檔案存在 → base64 內嵌實圖（codex P1 修復）；否則佔位框。
     bullets（可選，2026-10-08 新增）：題目／判定文字列在圖片上方、同一頁（EBM APPRAISE
-    「評讀題目＋原文佐證截圖」合頁用——使用者 10/08 第三輪退件要求「題目列在上面、下面附截圖」，
-    不要題目頁與截圖頁分開兩張）。不給 bullets 時版面與行為完全不變（零回歸風險）。"""
+    「評讀題目＋原文佐證截圖」合頁用——使用者第三輪退件要求「題目列在上面、下面附截圖」，
+    不要題目頁與截圖頁分開兩張）。不給 bullets 時版面與行為完全不變（零回歸風險）。
+    layout（可選，2026-10-09 新增，EBM 背景機轉圖專用；使用者兩輪回饋定案：先要求並排後改
+    「整頁滿版、不靠旁邊文字輔助」）：預設 None＝原本「bullets 在上、圖在下」堆疊版型（不動）；
+    `"full"`＝滿版版型——不畫 bullets，只留標題與底部一行出處，圖吃掉幾乎整個內容區
+    （≥80% 畫布面積，使用者原話「整頁填滿 可以直接看 不用配字體在旁邊」）；原本要給讀者看的
+    英文說明改成**圖本身要畫出來的標註**（by caller：mechanism SVG 自己把每個節點/箭頭的
+    英文標籤畫進去，不是這個函式的事），這個函式只負責把圖放大到滿版。
+    notes（可選，2026-10-09 新增）：講者備忘稿純文字／陣列，寫進
+    `<project_path>/notes/fig_<slug>.md`（ppt-master `find_notes_files()` 以檔名比對
+    svg stem 自動吃進 pptx 的 speaker notes，不影響可見投影片版面）。"""
     # codex review P2/P3（三輪累積）：型別守門移到標題字級決定「之前」——bullets 是非 list 的
     # truthy 值（如字串）時，若先寫了 34 號標題才發現要忽略，標題字級與最終版面（無 bullets）會對不上。
     if bullets is not None and not isinstance(bullets, (list, tuple)):
         sys.stderr.write(f"WARN figure「{title}」：bullets 必須是陣列，收到 {type(bullets).__name__}，已忽略\n")
+        bullets = None
+    if layout not in (None, "full"):
+        sys.stderr.write(f"WARN figure「{title}」：layout「{layout}」無效（僅支援 None/\"full\"），已忽略\n")
+        layout = None
+    if layout == "full" and bullets:
+        sys.stderr.write(f"WARN figure「{title}」：layout=full 不畫 bullets（滿版留給圖），已忽略 bullets 參數——英文說明請改走 notes 參數\n")
         bullets = None
     s = head()
     s.append(dots(70, 70))
     s.append(txt(90, 120, title, 34 if bullets else 46, ls="1.2"))
     s.append('<line x1="90" y1="145" x2="1190" y2="145" stroke="#C4C9D0" stroke-width="2"/>')
     raw_overflow_y = None  # codex review P2：溢出警告用未夾住的真實值，夾住的 cap_y 會讓警告永遠不觸發
-    if bullets:
+
+    if layout == "full":
+        # 滿版版型：不畫 bullets，圖吃掉幾乎整個內容區（content 區約 90-1190 x 150-710；
+        # 這裡取 img_w/img_h 讓面積佔比 >80%）。
+        img_x, img_w = 50, 1180
+        img_y0, cap_y = 160, 700
+        img_h = cap_y - 20 - img_y0
+    elif bullets:
         y = 180
         truncated = False
         for b in bullets:
@@ -318,6 +499,7 @@ def figure(outdir, idx, title, caption, path=None, hl=None, bullets=None):
             y += 5
         if truncated:
             sys.stderr.write(f"WARN figure「{title}」：bullets 太多，圖片區會被擠出畫布/與 caption 重疊，已截斷後續 bullet——內容過長，拆成兩頁或精簡文字\n")
+        img_x, img_w = 240, 800
         img_y0 = max(y + 8, 170)
         img_h = max(630 - img_y0, 140)
         if img_y0 + 140 >= 630:  # codex review P2（第四輪）：被夾到下限＝圖只剩 140px 高，值得主動提醒
@@ -325,6 +507,7 @@ def figure(outdir, idx, title, caption, path=None, hl=None, bullets=None):
         cap_y = min(img_y0 + img_h + 22, 695)
         raw_overflow_y = img_y0 + img_h + 42  # 未夾住：bullets 太多把圖擠出畫布時這裡會 > 720
     else:
+        img_x, img_w = 240, 800
         img_y0, img_h, cap_y = 170, 440, 655
     embedded = False
     raw = _valid_image_bytes(path)  # 驗 magic bytes（擋 0-byte／崩潰半成品／非圖片；只 isfile 會靜默嵌空圖）
@@ -333,7 +516,7 @@ def figure(outdir, idx, title, caption, path=None, hl=None, bullets=None):
         mime = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg"}.get(ext)
         if mime:
             b64 = base64.b64encode(raw).decode()
-            s.append(f'<image x="240" y="{img_y0}" width="800" height="{img_h}" '
+            s.append(f'<image x="{img_x}" y="{img_y0}" width="{img_w}" height="{img_h}" '
                      f'preserveAspectRatio="xMidYMid meet" href="data:{mime};base64,{b64}"/>')
             embedded = True
             if hl:
@@ -346,9 +529,9 @@ def figure(outdir, idx, title, caption, path=None, hl=None, bullets=None):
                     sys.stderr.write(f"WARN figure「{title}」：紅框僅支援 PNG（此圖非 PNG 或讀不到尺寸），已略過\n")
                 else:
                     iw, ih = sz
-                    sc = min(800 / iw, img_h / ih)
+                    sc = min(img_w / iw, img_h / ih)
                     dw, dh = iw * sc, ih * sc
-                    dx, dy = 240 + (800 - dw) / 2, img_y0 + (img_h - dh) / 2
+                    dx, dy = img_x + (img_w - dw) / 2, img_y0 + (img_h - dh) / 2
                     rx0, ry0, rx1, ry1 = hl
                     s.append(f'<rect x="{dx + rx0 * dw:.1f}" y="{dy + ry0 * dh:.1f}" '
                              f'width="{max((rx1 - rx0) * dw, 0):.1f}" height="{max((ry1 - ry0) * dh, 0):.1f}" '
@@ -360,7 +543,10 @@ def figure(outdir, idx, title, caption, path=None, hl=None, bullets=None):
     if not embedded:
         # codex review P3：無 bullets 時佔位框座標要與原版完全一致（200/380/380），
         # 否則「不給 bullets 時版面與行為完全不變」的宣稱不成立（既有無圖佔位頁會跟著回歸）。
-        if bullets:
+        if layout == "full":
+            s.append(f'<rect x="{img_x}" y="{img_y0}" width="{img_w}" height="{img_h}" fill="#FFFFFF" stroke="#B0B6BE" stroke-width="2" stroke-dasharray="10 8"/>')
+            s.append(txt(img_x + img_w / 2, img_y0 + img_h / 2, "[ Journal Figure ]", 36, "#8A9099", "700", "middle"))
+        elif bullets:
             # codex review P3（第二輪）：佔位框高度跟 cap_y 連動，img_h 被夾到下限 140 時
             # 框底（img_y0+15+height）不會超出 cap_y，不會壓到下方 caption。
             # codex review P2（第三輪）：ph_h 下限 60 在極端擠壓情況仍可能讓框底超過 cap_y、
@@ -376,14 +562,52 @@ def figure(outdir, idx, title, caption, path=None, hl=None, bullets=None):
         else:
             s.append('<rect x="240" y="200" width="800" height="380" fill="#FFFFFF" stroke="#B0B6BE" stroke-width="2" stroke-dasharray="10 8"/>')
             s.append(txt(W/2, 380, "[ Journal Figure ]", 34, "#8A9099", "700", "middle"))
-    s.append(txt(W/2, cap_y, caption, 22, "#8A9099", "400", "middle"))
+    if layout == "full":
+        s.append(txt(img_x + img_w / 2, cap_y, caption, 18, "#8A9099", "400", "middle"))
+    else:
+        s.append(txt(W/2, cap_y, caption, 22, "#8A9099", "400", "middle"))
     # codex review P3：_warn_overflow 只在新的 bullets 路徑才呼叫（既有無 bullets 路徑維持原本
     # 「不檢查」行為不變，避免既有頁面突然冒出沒人處理過的溢出警告）；P2：用未夾住的 raw_overflow_y。
     if bullets:
         _warn_overflow("figure", title, raw_overflow_y)
-    write(outdir, idx, "fig_" + slug(title), s)
+    stem = "fig_" + slug(title)
+    write(outdir, idx, stem, s)
+    # codex review P2（2026-10-09）：outdir 是相對單層路徑（如 "svg_output"）時 dirname 會是空字串，
+    # notes 跑到 CWD 下、ppt-master 找不到 → 先 abspath。沒有 notes 時要刪掉同名舊檔，
+    # 否則重跑後舊講稿殘留、被吃進新 pptx。
+    # review P3：只在 outdir 是慣例的 <project>/svg_output 時才寫／刪 notes，否則（如 /tmp/out）
+    # 會寫進共用的 /tmp/notes/、「無 notes 就刪舊檔」還可能刪到不相干的同名檔。
+    out_abs = os.path.abspath(outdir)
+    notes_path = None
+    if os.path.basename(out_abs) == "svg_output":
+        notes_path = os.path.join(os.path.dirname(out_abs), "notes", f"{idx}_{stem}.md")
+    elif notes:
+        sys.stderr.write(f"WARN figure「{title}」：outdir 不是 <project>/svg_output，講者備忘稿略過不寫（ppt-master 只認 <project>/notes/）\n")
+    if notes_path is None:
+        pass
+    elif not notes:
+        try:
+            if os.path.isfile(notes_path):
+                os.remove(notes_path)
+        except OSError as e:
+            sys.stderr.write(f"WARN figure「{title}」：舊講者備忘稿刪除失敗（{e}）\n")
+    if notes and notes_path:
+        # 講者備忘稿（2026-10-09 新增，EBM 背景機轉圖 layout=full 用）：寫進
+        # <project_path>/notes/<svg 完整檔名 stem（含 idx 前綴）>.md，project_path = outdir
+        # 的上一層（outdir 慣例是 <project>/svg_output）。ppt-master 的 find_notes_files()
+        # 用「檔名 stem 完全相同」比對 SVG（見該檔 docstring：notes/01_cover.md -> 01_cover.svg），
+        # 只對到 "fig_xxx" 不含 idx 前綴配不上、notes 會被靜默忽略（2026-10-09 首版踩到，
+        # has_notes_slide 檢查出來才發現）——svg 實際檔名是 write() 產出的 f"{idx}_{stem}.svg"，
+        # notes 檔名要完全比照同一個 stem。
+        try:
+            os.makedirs(os.path.dirname(notes_path), exist_ok=True)
+            notes_text = "\n".join(f"- {n}" for n in notes) if isinstance(notes, (list, tuple)) else str(notes)
+            with open(notes_path, "w", encoding="utf-8") as f:
+                f.write(notes_text)
+        except OSError as e:
+            sys.stderr.write(f"WARN figure「{title}」：講者備忘稿寫入失敗（{type(e).__name__}: {e}），投影片本身不受影響\n")
 
-VALID_KINDS = {"section", "figure", "table", "textcard", "content"}
+VALID_KINDS = {"section", "figure", "table", "textcard", "content", "flowchart"}
 _LIST_FIELDS = {"bullets": list, "paragraphs": list, "rows": list, "headers": list}
 
 def validate_content(data):
@@ -420,6 +644,56 @@ def validate_content(data):
                         raise SystemExit(f"{where} 的 rows[{j}] 必須是陣列（一列儲存格），收到 {type(el).__name__}")
                 elif not isinstance(el, (str, int, float)):
                     raise SystemExit(f"{where} 的 {field}[{j}] 必須是文字/數字，收到 {type(el).__name__}")
+        # figure 的 layout/notes 是這次新增欄位，不在 _LIST_FIELDS 假設範圍內，獨立檢查
+        # （2026-10-09 新增，EBM 背景機轉圖改滿版版型＋講者備忘稿）。
+        if k == "figure":
+            layout_val = sl.get("layout")
+            if layout_val is not None and layout_val not in ("full",):
+                raise SystemExit(f"{where} figure 的 layout 只支援 null 或 \"full\"，收到 {layout_val!r}")
+            notes_val = sl.get("notes")
+            if notes_val is not None and not isinstance(notes_val, (str, list)):
+                raise SystemExit(f"{where} figure 的 notes 必須是文字或陣列，收到 {type(notes_val).__name__}")
+            if isinstance(notes_val, list):
+                for j, n in enumerate(notes_val):
+                    if not isinstance(n, (str, int, float)):
+                        raise SystemExit(f"{where} notes[{j}] 必須是文字/數字，收到 {type(n).__name__}")
+        # flowchart 的 steps/excluded 是物件陣列（不是 _LIST_FIELDS 假設的純量陣列），獨立檢查
+        # （2026-10-09 新增，EBM ACQUIRE 選文流程頁改成 PRISMA 式方框圖）。
+        if k == "flowchart":
+            steps = sl.get("steps")
+            if not isinstance(steps, list) or not steps:
+                raise SystemExit(f"{where} flowchart 的 steps 必須是非空陣列")
+            for j, st in enumerate(steps):
+                if not isinstance(st, dict):
+                    raise SystemExit(f"{where} steps[{j}] 必須是物件 {{label,n}}")
+                if not isinstance(st.get("label"), str):
+                    raise SystemExit(f"{where} steps[{j}].label 必須是文字")
+                # codex review P2（round2 Sonnet）：bool 是 int 子類別，這裡原本沒排除，
+                # 跟 flowchart() 內部自己的檢查（已排除 bool）不一致，兩處要同步。
+                n_val = st.get("n")
+                if isinstance(n_val, bool) or not isinstance(n_val, (int, float)):
+                    raise SystemExit(f"{where} steps[{j}].n 必須是數字")
+            excl = sl.get("excluded")
+            if excl is not None:
+                if not isinstance(excl, list):
+                    raise SystemExit(f"{where} flowchart 的 excluded 必須是陣列")
+                for j, e in enumerate(excl):
+                    if not isinstance(e, dict):
+                        raise SystemExit(f"{where} excluded[{j}] 必須是物件 {{after,n,reasons}}")
+                    after_val = e.get("after")
+                    if isinstance(after_val, bool) or not isinstance(after_val, int):
+                        raise SystemExit(f"{where} excluded[{j}].after 必須是整數（steps 索引，0-based）")
+                    n_ex_val = e.get("n")
+                    if isinstance(n_ex_val, bool) or not isinstance(n_ex_val, (int, float)):
+                        raise SystemExit(f"{where} excluded[{j}].n 必須是數字")
+                    if "reasons" in e:
+                        if not isinstance(e["reasons"], list):
+                            raise SystemExit(f"{where} excluded[{j}].reasons 必須是陣列")
+                        # codex review P2（round1 Sonnet）：reasons 元素型別當時只在 flowchart()
+                        # 內部檢查，validate_content 沒檢查——這裡補齊，提早在內容階段就擋掉。
+                        for k2, r in enumerate(e["reasons"]):
+                            if isinstance(r, bool) or not isinstance(r, (str, int, float)):
+                                raise SystemExit(f"{where} excluded[{j}].reasons[{k2}] 必須是文字/數字，收到 {type(r).__name__}")
 
 def build(content_path, outdir):
     try:
@@ -436,9 +710,10 @@ def build(content_path, outdir):
     n = 1
     cover(outdir, f"{n:02d}", data.get("cover") or {}); n += 1
     dispatch = {"section": lambda idx, sl: section(outdir, idx, sl.get("name", "")),
-                "figure": lambda idx, sl: figure(outdir, idx, sl.get("title", "Figure"), sl.get("caption", ""), sl.get("path"), sl.get("hl"), sl.get("bullets")),
+                "figure": lambda idx, sl: figure(outdir, idx, sl.get("title", "Figure"), sl.get("caption", ""), sl.get("path"), sl.get("hl"), sl.get("bullets"), sl.get("layout"), sl.get("notes")),
                 "table": lambda idx, sl: table(outdir, idx, sl.get("title", ""), sl.get("headers", []), sl.get("rows", []), sl.get("widths"), sl.get("note")),
                 "textcard": lambda idx, sl: textcard(outdir, idx, sl.get("title", ""), sl.get("paragraphs", []), sl.get("quote"), sl.get("caption")),
+                "flowchart": lambda idx, sl: flowchart(outdir, idx, sl.get("title", ""), sl.get("steps", []), sl.get("excluded"), sl.get("note")),
                 "content": lambda idx, sl: content(outdir, idx, sl.get("title", ""), sl.get("bullets", []))}
     for sl in data.get("slides", []):
         dispatch.get(sl.get("kind"), dispatch["content"])(f"{n:02d}", sl)
